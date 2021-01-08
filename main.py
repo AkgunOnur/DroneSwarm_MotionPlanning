@@ -34,13 +34,13 @@ policy = Net()
 optimizer = optim.Adam(policy.parameters(), lr=1e-3)
 env = QuadrotorFormation()
 
-if not os.path.exists('./logs'):
-	os.makedirs('./logs')
+if not os.path.exists('./models'):
+	os.makedirs('./models')
 
 filename = str(datetime.datetime.now())+str('_%dagents_fixed_fcnpolicy'%env.n_agents)
 filename = filename+str('.pt')
 filename = "3agents.pt"
-torch.save(policy.state_dict(),'./logs/%s'%filename)
+torch.save(policy.state_dict(),'./models/%s'%filename)
 
 def main(episodes):
 	running_reward = 10
@@ -57,16 +57,18 @@ def main(episodes):
 			#if episode%50==0:
 			env.render()
 			#g = build_graph(env)
-			if time % 1 == 0:
+			if time % 100 == 0:
+				print ("state: ", state)
 				action = select_action(state,g,policy)
+				
 
 				action = action.numpy()
 				action = np.reshape(action,[-1])
 				# Step through environment using chosen action
 				action = np.clip(action,-env.max_action,env.max_action)
-
 				print ("Target X: {0:.4}, Y: {0:.4}, Z: {2:.4}".format(action[0], action[1], action[2]))
 
+				
 			state, reward, done, _ = env.step(action)
 
 			reward_over_eps.append(reward)

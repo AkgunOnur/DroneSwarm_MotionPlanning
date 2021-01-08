@@ -11,6 +11,7 @@ import itertools
 import random
 import pdb
 from quadrotor_dynamics import Quadrotor
+from numpy.random import uniform
 
 font = {'family': 'sans-serif',
         'weight': 'bold',
@@ -124,9 +125,12 @@ class QuadrotorFormation(gym.Env):
         self.agent_pos_goal = np.zeros((self.n_agents, self.n_action))
         self.agent_pos_start = np.zeros((self.n_agents, self.n_action))
 
-        eps = 1.0
-        goal_locations = [(-self.x_lim+eps, -self.y_lim+eps, 5), (-self.x_lim+eps, self.y_lim-eps, 5), 
-                          (self.x_lim-eps, self.y_lim-eps, 5), (self.x_lim-eps, -self.y_lim+eps, 5)]
+        eps = 2.0
+        
+        goal_locations = [(uniform(-self.x_lim-eps, -self.x_lim+eps), uniform(-self.y_lim-eps, -self.y_lim+eps), uniform(5-eps, 5+eps)), 
+                          (uniform(-self.x_lim-eps, -self.x_lim+eps), uniform(self.y_lim-eps, self.y_lim+eps), uniform(5-eps, 5+eps)), 
+                          (uniform(self.x_lim-eps, self.x_lim+eps), uniform(self.y_lim-eps, self.y_lim+eps), uniform(5-eps, 5+eps)), 
+                          (uniform(self.x_lim-eps, self.x_lim+eps), uniform(-self.y_lim-eps, -self.y_lim+eps), uniform(5-eps, 5+eps))]
 
         for i in range(0,self.n_agents):
             x_target, y_target, z_target = goal_locations[i]
@@ -143,8 +147,8 @@ class QuadrotorFormation(gym.Env):
         ##########declare start positions############
         for i in range(0,self.n_agents):
             x_start = self.placer_x + 2*i
-            y_start = np.random.uniform(-1.,0)
-            z_start = np.random.uniform(0,2.)
+            y_start = uniform(-1.,0)
+            z_start = uniform(0,2.)
 
             self.agent_pos_start[i,:] = [x_start, y_start, z_start]
             

@@ -41,7 +41,7 @@ def select_action(state,g,policy):
 
 	
 	eps = torch.randn(mu.size())
-	action = (mu + sigma.sqrt()*Variable(eps)).data
+	action = (20*mu + sigma.sqrt()*Variable(eps)).data
 	prob = normal(action, mu, sigma)
 
 	prob2= torch.prod(prob.reshape(-1))
