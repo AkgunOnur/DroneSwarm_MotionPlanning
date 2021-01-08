@@ -15,4 +15,4 @@ To increase the number of agents simply change the parameter self.n_agents in co
 
 Lastly, if you wish to use the VPG baseline, uncomment line 23 and comment out line 22 in main.py. 
 
-Thank You
+Thank You Very much
