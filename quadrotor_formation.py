@@ -38,10 +38,7 @@ class QuadrotorFormation(gym.Env):
         self.nx_system = self.n_features + 3
         # number of actions per agent which are desired positions and yaw angle
         self.n_action = 3
-        self.x_lim = 50.0 # figure x limit
-        self.y_lim = 50.0 # figure y limit
         
-
         # problem parameters from file
         self.n_agents = 4
         self.comm_radius = float(config['comm_radius'])
@@ -67,8 +64,8 @@ class QuadrotorFormation(gym.Env):
         # Select if waypoint time is used, or if average speed is used to calculate waypoint time   (0: waypoint time,   1: average speed)
         self.trajSelect[2] = 1
 
-        self.v_average = 1.75
-        self.period_denum = 2.0
+        self.v_average = 1.5
+        self.period_denum = 3.0
         self.dtau = 1e-3
 
         # intitialize state matrices
@@ -85,6 +82,18 @@ class QuadrotorFormation(gym.Env):
         self.observation_space = spaces.Box(low=-np.Inf, high=np.Inf, shape=(self.n_agents, self.n_features),
                                             dtype=np.float32)
 
+        # intitialize grid information
+        self.x_lim = 20 # grid x limit
+        self.y_lim = 20 # grid y limit
+        self.z_lim = 15 # grid z limit
+        self.res = 1.0 # resolution for grids
+        self.out_shape = 164 # width and height for uncertainty matrix
+
+        X,Y,Z = np.mgrid[-self.x_lim:self.x_lim+0.1:self.res, -self.y_lim:self.y_lim+0.1:self.res, 0:self.z_lim+0.1:self.res]
+        self.uncertainty_grids = np.vstack((X.flatten(), Y.flatten(), Z.flatten())).T
+        self.uncertainty_values = np.ones((self.uncertainty_grids.shape[0], ))
+        self.grid_visits = np.ones((self.uncertainty_grids.shape[0], ))
+
         self.fig = None
         self.line1 = None
         self.counter = 0
@@ -94,20 +103,19 @@ class QuadrotorFormation(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def step(self):
+    def step(self, action):
         #self.nu = 1
-        # self.agent_targets = np.reshape(action,(self.n_agents, self.n_action))
+        self.agent_targets = np.reshape(action,(self.n_agents, self.n_action))
         self.fail_check = np.zeros(self.n_agents)
         eps = 1.5
         done = False
         traj_list = []
         drone_crash = False
 
-        self.agent_targets = np.copy(self.agent_pos_goal)
+        # self.agent_targets = np.copy(self.agent_pos_goal)
 
-        print ("\n")
-        for i in range(self.n_agents):
-            print ("Agent State: ", self.quadrotors[i].state)
+        # for i in range(self.n_agents):
+        #     print ("Agent State: ", self.quadrotors[i].state)
 
         for i in range(self.n_agents):            
             xd, yd, zd = self.agent_targets[i][0], self.agent_targets[i][1], self.agent_targets[i][2]
@@ -125,8 +133,9 @@ class QuadrotorFormation(gym.Env):
             Waypoint_length = flight_period // self.dtau
             t_list = np.linspace(0, flight_period, num = Waypoint_length)
 
-            print ("\n Initial X:{0:.3}, Y:{1:.3}, Z:{2:.3} for agent {3} ".format(pos0[0], pos0[1], pos0[2], i))
-            print ("Target X:{0:.3}, Y:{1:.3}, Z:{2:.3} for agent {3} in {4:.3} s. ".format(xd, yd, zd, i, newTraj.t_wps[1]))
+            print ("\n Agent {0}".format(i+1))
+            print ("Initial X:{0:.3}, Y:{1:.3}, Z:{2:.3} ".format(pos0[0], pos0[1], pos0[2]))
+            print ("Target X:{0:.3}, Y:{1:.3}, Z:{2:.3} in {3:.3} s. ".format(xd, yd, zd, newTraj.t_wps[1]))
 
             for ind, t_current in enumerate(t_list): 
                 pos_des, vel_des, acc_des, euler_des = newTraj.desiredState(t_current, self.dtau, self.quadrotors[i].state)
@@ -162,6 +171,17 @@ class QuadrotorFormation(gym.Env):
                     print ("Drone {0} has crashed!".format(i))
                     break 
 
+                current_pos = [self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2]]
+
+                if ind % 150 == 0:
+                    differences = current_pos-self.uncertainty_grids
+                    distances = np.sum(differences*differences,axis=1)
+                    min_ind = np.argmin(distances)
+                    self.uncertainty_values[min_ind] = 0.1
+
+                    # print ("current_pos: ", current_pos)
+                    # print ("closest grid: ", self.uncertainty_grids[min_ind])
+
             self.diff_target[i][:] = self.quadrotors[i].state[0:3]-self.agent_targets[i][:]
 
             print ("Final  X:{0:.3}, Y:{1:.3}, Z:{2:.3} for agent {3}: ".format(self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2], i))
@@ -182,17 +202,18 @@ class QuadrotorFormation(gym.Env):
     def _get_obs(self):
 
         for i in range(self.n_agents):
-            self.agent_features[i,0] = self.quadrotors[i].state[0] - self.agent_pos_goal[i,0]
-            self.agent_features[i,1] = self.quadrotors[i].state[1] - self.agent_pos_goal[i,1]
-            self.agent_features[i,2] = self.quadrotors[i].state[2] - self.agent_pos_goal[i,2]
+            self.agent_features[i,0] = self.quadrotors[i].state[0] - 0*self.agent_pos_goal[i,0]
+            self.agent_features[i,1] = self.quadrotors[i].state[1] - 0*self.agent_pos_goal[i,1]
+            self.agent_features[i,2] = self.quadrotors[i].state[2] - 0*self.agent_pos_goal[i,2]
 
+        uncertainty_mat = np.reshape(self.uncertainty_values, (1, 1, self.out_shape, self.out_shape))
         if self.dynamic:
             state_network = self.get_connectivity(self.x)
         else:
             state_network = self.a_net
 
         #return (state_values, state_network)
-        return self.agent_features
+        return self.agent_features, uncertainty_mat
 
     def instant_cost(self):  # sum of differences in velocities
         cost = 0.
@@ -213,6 +234,7 @@ class QuadrotorFormation(gym.Env):
         self.counter = 0
         self.agent_pos_goal = np.zeros((self.n_agents, self.n_action))
         self.agent_pos_start = np.zeros((self.n_agents, self.n_action))
+        self.uncertainty_values = np.ones((self.uncertainty_grids.shape[0], ))
 
         eps = 5.0
         

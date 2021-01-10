@@ -49,50 +49,52 @@ def main(episodes):
 
 	for episode in range(episodes):
 		reward_over_eps = []
-		state = env.reset() # Reset environment and record the starting state
+		agent_obs = env.reset() # Reset environment and record the starting state
 		g = build_graph(env)
 		done = False
-
-		state, reward, done, _ = env.step()
-
 	
-		# for time in range(2000):
+		state, uncertainty_mat = agent_obs
+		print ("state: ", state)
+		print ("uncertainty: ", uncertainty_mat)
+		for time in range(1):
 
-		# 	#if episode%50==0:
-		# 	env.render()
-		# 	#g = build_graph(env)
-		# 	if time % 100 == 0:
-		# 		print ("state: ", state)
-		# 		action = select_action(state,g,policy)
-				
-		# 		action = action.numpy()
-		# 		action = np.reshape(action,[-1])
-		# 		# Step through environment using chosen action
-		# 		action = np.clip(action,-env.max_action,env.max_action)
-		# 		print ("Target X: {0:.4}, Y: {0:.4}, Z: {2:.4}".format(action[0], action[1], action[2]))
+			#if episode%50==0:
+			#env.render()
+			#g = build_graph(env)
+			action = select_action(state,uncertainty_mat,g,policy)
+			action = action.numpy()
 
-				
-		# 	state, reward, done, _ = env.step(action)
+			print ("\n")
+			for i in range(action.shape[0]):
+				print ("Agent {3} Target X: {0:.4}, Y: {0:.4}, Z: {2:.4}".format(action[i][0], action[i][1], action[i][2], i+1))
 
-		# 	reward_over_eps.append(reward)
-		# 	# Save reward
-		# 	policy.reward_episode.append(reward)
-		# 	if done:
-		# 		break
+			action = np.reshape(action,[-1])
+			# Step through environment using chosen action
+			action = np.clip(action,-env.max_action,env.max_action)
+			
+			agent_obs, reward, done, _ = env.step(action)
+			state, uncertainty_mat = agent_obs
+
+
+			reward_over_eps.append(reward)
+			# Save reward
+			policy.reward_episode.append(reward)
+			if done:
+				break
 
 		# Used to determine when the environment is solved.
-		# running_reward = (running_reward * 0.99) + (time * 0.01)
+		running_reward = (running_reward * 0.99) + (time * 0.01)
 
-		# update_policy(policy,optimizer)
+		update_policy(policy,optimizer)
 
-		# if episode % 1 == 0:
-		# 	print('Episode {}\tLast length: {:5d}\tAverage running reward: {:.2f}\tAverage reward over episode: {:.2f}'.format(episode, time, running_reward, np.mean(reward_over_eps)))
+		if episode % 1 == 0:
+			print('Episode {}\tLast length: {:5d}\tAverage running reward: {:.2f}\tAverage reward over episode: {:.2f}'.format(episode, time, running_reward, np.mean(reward_over_eps)))
 
-		# if episode % 5000 == 0 :
-		# 	torch.save(policy.state_dict(),'./logs/%s'%filename)
+		if episode % 5000 == 0 :
+			torch.save(policy.state_dict(),'./models/%s'%filename)
 
 
-		# plotting_rew.append(np.mean(reward_over_eps))
+		plotting_rew.append(np.mean(reward_over_eps))
 	#pdb.set_trace()
 	np.savetxt('Relative_Goal_Reaching_for_%d_agents_rs_rg.txt' %(env.n_agents), plotting_rew)
 	fig = plt.figure()

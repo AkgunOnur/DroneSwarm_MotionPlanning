@@ -63,6 +63,9 @@ class GCN(nn.Module):
 class Net(nn.Module):
 	def __init__(self):
 		super(Net, self).__init__()
+		# input 164x164
+		self.conv = nn.Conv2d(in_channels=1, out_channels= 1, kernel_size= 7, stride=2)
+		self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
 		#self.l1 = nn.Linear(2,64,bias=False)
 		#self.l2 = nn.Linear(64,2,bias=False)
 		#self.l3 = nn.Linear(64,2,bias=False)
@@ -70,8 +73,8 @@ class Net(nn.Module):
 		self.gcn1 = GCN(3, 16, t.tanh)
 		#self.gcn11 = GCN(16, 16, t.tanh)
 		#self.gcn111 = GCN(64, 32, F.relu)
-		self.gcn2 = GCN(16, 3, t.tanh)
-		self.gcn2_ = GCN(16,3,t.tanh)
+		self.gcn2 = GCN(52, 3, t.tanh)
+		self.gcn2_ = GCN(52,3,t.tanh)
 
 		#self.gcn2 = GCN(16, 2, t.tanh)
 		#self.gcn2_ = GCN(16,2,t.tanh)
@@ -84,13 +87,35 @@ class Net(nn.Module):
 		self.loss_history = []
 		self.gamma = 0.99
 
-	def forward(self, g, features):
+	def forward(self, g, features, uncertainty):
+		N = features.shape[0]
+		# Convolution part
+		out1 = F.relu(self.conv(uncertainty))
+		out2 = F.relu(self.pool(out1)) 
+		out3 = F.relu(self.conv(out2))
+		out4 = F.relu(self.pool(out3)) 
+		out5 = F.relu(self.conv(out3)) 
+		out5 = out5.view(1, -1)
+		# print ("out: ", out5.size())
+		
+		# Repeating uncertainty feature (1x36) for each agent (n_agentx36)
+		out5 = out5.repeat(N,1)
+		# print ("out: ", out5.size())
 
-
+		# First graph output (n_agentx16)
 		x = self.gcn1(g, features)
+		# print ("x: ", x.size())
+
+		# Concatenate uncertainty output and graph output (n_agentx52)
+		y = torch.cat((x, out5), 1)
+		# print ("y: ", y.size())
 		#x = F.relu(self.l1(features))
 		#mu = F.relu(self.l2(x))
 		#sigma = F.relu(self.l3(x))
-		mu = self.gcn2(g, x)
-		sigma = self.gcn2_(g,x)
-		return mu,sigma
+
+		# Last graph output (n_agentx3)
+		mu = self.gcn2(g, y)
+		# print ("mu: ", mu.size())
+		sigma = self.gcn2_(g,y)
+		return mu, sigma
+
