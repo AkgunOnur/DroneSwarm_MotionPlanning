@@ -12,6 +12,7 @@ import random
 import pdb
 from quadrotor_dynamics import Quadrotor
 from numpy.random import uniform
+from trajectory import Trajectory
 
 font = {'family': 'sans-serif',
         'weight': 'bold',
@@ -52,7 +53,23 @@ class QuadrotorFormation(gym.Env):
         self.std_dev = float(config['std_dev']) * self.dt
 
         state0 = [0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.]
-        self.quadrotors = [Quadrotor(state0)]*self.n_agents
+        self.quadrotors = []
+
+        self.trajSelect = np.zeros(3)
+        # Select Position Trajectory Type (0: hover,                    1: pos_waypoint_timed,      2: pos_waypoint_interp,    
+        #                                  3: minimum velocity          4: minimum accel,           5: minimum jerk,           6: minimum snap
+        #                                  7: minimum accel_stop        8: minimum jerk_stop        9: minimum snap_stop
+        #                                 10: minimum jerk_full_stop   11: minimum snap_full_stop
+        #                                 12: pos_waypoint_arrived
+        self.trajSelect[0] = 4
+        # Select Yaw Trajectory Type      (0: none                      1: yaw_waypoint_timed,      2: yaw_waypoint_interp     3: follow          4: zero)
+        self.trajSelect[1] = 2
+        # Select if waypoint time is used, or if average speed is used to calculate waypoint time   (0: waypoint time,   1: average speed)
+        self.trajSelect[2] = 1
+
+        self.v_average = 1.75
+        self.period_denum = 2.0
+        self.dtau = 1e-3
 
         # intitialize state matrices
         self.total_states = np.zeros((self.n_agents, self.nx_system))
@@ -77,33 +94,105 @@ class QuadrotorFormation(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def step(self, action):
+    def step(self):
         #self.nu = 1
-        self.agent_targets = np.reshape(action,(self.n_agents, self.n_action))
+        # self.agent_targets = np.reshape(action,(self.n_agents, self.n_action))
         self.fail_check = np.zeros(self.n_agents)
         eps = 1.5
         done = False
+        traj_list = []
+        drone_crash = False
 
+        self.agent_targets = np.copy(self.agent_pos_goal)
+
+        print ("\n")
         for i in range(self.n_agents):
-            #     ref_traj = [xd[i], yd[i], zd[i], xd_dot[i], yd_dot[i], zd_dot[i], 
-            #                 xd_ddot[i], yd_ddot[i], zd_ddot[i], xd_dddot[i], yd_dddot[i],
-            #                 xd_ddddot[i], yd_ddddot[i], psid[i], psid_dot[i], psid_ddot[i]]
+            print ("Agent State: ", self.quadrotors[i].state)
+
+        for i in range(self.n_agents):            
             xd, yd, zd = self.agent_targets[i][0], self.agent_targets[i][1], self.agent_targets[i][2]
-            ref_traj = [xd, yd, zd, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-            self.fail_check[i] = int(self.quadrotors[i].simulate(ref_traj))
+            pos0 = [self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2]]
+            posf = [xd, yd, zd]
+            yaw0 = self.quadrotors[i].state[5]
+            yawf = 0.
+            time_list = np.hstack((0., 20)).astype(float)
+            waypoint_list = np.vstack((pos0, posf)).astype(float)
+            yaw_list = np.hstack((yaw0, yawf)).astype(float)
+
+            newTraj = Trajectory(self.trajSelect, self.quadrotors[i].state, time_list, waypoint_list, yaw_list, v_average=self.v_average)
+            Tf = newTraj.t_wps[1]
+            flight_period = Tf / self.period_denum
+            Waypoint_length = flight_period // self.dtau
+            t_list = np.linspace(0, flight_period, num = Waypoint_length)
+
+            print ("\n Initial X:{0:.3}, Y:{1:.3}, Z:{2:.3} for agent {3} ".format(pos0[0], pos0[1], pos0[2], i))
+            print ("Target X:{0:.3}, Y:{1:.3}, Z:{2:.3} for agent {3} in {4:.3} s. ".format(xd, yd, zd, i, newTraj.t_wps[1]))
+
+            for ind, t_current in enumerate(t_list): 
+                pos_des, vel_des, acc_des, euler_des = newTraj.desiredState(t_current, self.dtau, self.quadrotors[i].state)
+
+                # self.vel_sum += (self.quad.state[6]**2+self.quad.state[7]**2+self.quad.state[8]**2)
+
+                xd, yd, zd = pos_des[0], pos_des[1], pos_des[2]
+                xd_dot, yd_dot, zd_dot = vel_des[0], vel_des[1], vel_des[2]
+                xd_ddot, yd_ddot, zd_ddot = acc_des[0], acc_des[1], acc_des[2]
+
+                # xd_dddot = (xd_ddot - self.xd_ddot_pr) / self.dtau
+                # yd_dddot = (yd_ddot - self.yd_ddot_pr) / self.dtau
+                # xd_ddddot = (xd_dddot - self.xd_dddot_pr) / self.dtau
+                # yd_ddddot = (yd_dddot - self.yd_dddot_pr) / self.dtau
+
+                psid = euler_des[2]
+
+                # psid_dot = (psid - self.psid_pr) / self.dtau
+                # psid_ddot = (psid_dot - self.psid_dot_pr) / self.dtau
+
+                # current_traj = [xd, yd, zd, xd_dot, yd_dot, zd_dot, xd_ddot, yd_ddot, zd_ddot,
+                #                 xd_dddot, yd_dddot, xd_ddddot, yd_ddddot,
+                #                 psid, psid_dot, psid_ddot]
+
+                current_traj = [xd, yd, zd, xd_dot, yd_dot, zd_dot, xd_ddot, yd_ddot, zd_ddot,
+                                0, 0, 0, 0,
+                                psid, 0, 0]
+
+                self.fail_check[i] = self.quadrotors[i].simulate(current_traj)
+
+                if self.fail_check[i]:
+                    drone_crash = True
+                    print ("Drone {0} has crashed!".format(i))
+                    break 
+
             self.diff_target[i][:] = self.quadrotors[i].state[0:3]-self.agent_targets[i][:]
+
+            print ("Final  X:{0:.3}, Y:{1:.3}, Z:{2:.3} for agent {3}: ".format(self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2], i))
 
        
 
-        if np.sum(self.fail_check) > 0:
+        if drone_crash:
             done = True
             reward = -1e4
             return self._get_obs(), reward, done, {}
 
         if np.sum(self.diff_target[:,0]) < eps and np.sum(self.diff_target[:,1]) < eps and np.sum(self.diff_target[:,2]) < eps:
+            reward = 1e4
             done = True
 
         return self._get_obs(), self.instant_cost(), done, {}
+
+    def _get_obs(self):
+
+        for i in range(self.n_agents):
+            self.agent_features[i,0] = self.quadrotors[i].state[0] - self.agent_pos_goal[i,0]
+            self.agent_features[i,1] = self.quadrotors[i].state[1] - self.agent_pos_goal[i,1]
+            self.agent_features[i,2] = self.quadrotors[i].state[2] - self.agent_pos_goal[i,2]
+
+        if self.dynamic:
+            state_network = self.get_connectivity(self.x)
+        else:
+            state_network = self.a_net
+
+        #return (state_values, state_network)
+        return self.agent_features
 
     def instant_cost(self):  # sum of differences in velocities
         cost = 0.
@@ -125,7 +214,7 @@ class QuadrotorFormation(gym.Env):
         self.agent_pos_goal = np.zeros((self.n_agents, self.n_action))
         self.agent_pos_start = np.zeros((self.n_agents, self.n_action))
 
-        eps = 2.0
+        eps = 5.0
         
         goal_locations = [(uniform(-self.x_lim-eps, -self.x_lim+eps), uniform(-self.y_lim-eps, -self.y_lim+eps), uniform(5-eps, 5+eps)), 
                           (uniform(-self.x_lim-eps, -self.x_lim+eps), uniform(self.y_lim-eps, self.y_lim+eps), uniform(5-eps, 5+eps)), 
@@ -151,6 +240,8 @@ class QuadrotorFormation(gym.Env):
             z_start = uniform(0,2.)
 
             self.agent_pos_start[i,:] = [x_start, y_start, z_start]
+            state0 = [x_start, y_start, z_start, 0., 0., 0., 0., 0., 0., 0., 0., 0.]
+            self.quadrotors.append(Quadrotor(state0))
             
 
         x[:,0] = self.agent_pos_start[:,0]
@@ -178,20 +269,7 @@ class QuadrotorFormation(gym.Env):
         #pdb.set_trace()
         return self._get_obs()
 
-    def _get_obs(self):
-
-        for i in range(self.n_agents):
-            self.agent_features[i,0] = self.quadrotors[i].state[0] - self.agent_pos_goal[i,0]
-            self.agent_features[i,1] = self.quadrotors[i].state[1] - self.agent_pos_goal[i,1]
-            self.agent_features[i,2] = self.quadrotors[i].state[2] - self.agent_pos_goal[i,2]
-
-        if self.dynamic:
-            state_network = self.get_connectivity(self.x)
-        else:
-            state_network = self.a_net
-
-        #return (state_values, state_network)
-        return self.agent_features
+    
 
     def dist2_mat(self, x):
 
