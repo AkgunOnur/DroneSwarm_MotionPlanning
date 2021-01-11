@@ -14,7 +14,6 @@ import math
 from torch.autograd import Variable
 from torch.distributions import Categorical
 import networkx as nx
->>>>>> > 65cda8f9482f7302bd187f13dee54c08ca1c2739
 import matplotlib.pyplot as plt
 from policy import Net
 from make_g import build_graph

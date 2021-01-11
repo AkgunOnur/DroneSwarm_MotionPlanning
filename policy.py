@@ -20,82 +20,6 @@ import networkx as nx
 import pdb
 import matplotlib.pyplot as plt
 
-# gcn_msg = fn.copy_src(src='h', out='m')
-# gcn_reduce = fn.sum(msg='m', out='h')
-
-###############################################################################
-# We then define the node UDF for ``apply_nodes``, which is a fully-connected layer:
-
-<< << << < HEAD
-
-# class NodeApplyModule(nn.Module):
-#     def __init__(self, in_feats, out_feats, activation):
-#         super(NodeApplyModule, self).__init__()
-#         self.linear = nn.Linear(in_feats, out_feats)
-#         self.activation = activation
-== == == =
-
-
-class NodeApplyModule(nn.Module):
-    def __init__(self, in_feats, out_feats, activation):
-        super(NodeApplyModule, self).__init__()
-        self.linear = nn.Linear(in_feats, out_feats)
-        self.activation = activation
-
-    def forward(self, node):
-        h = self.linear(node.data['h'])
-        h = self.activation(h)
-        return {'h': h}
-
-
->>>>>> > 65cda8f9482f7302bd187f13dee54c08ca1c2739
-
-#     def forward(self, node):
-#         h = self.linear(node.data['h'])
-#         h = self.activation(h)
-#         return {'h': h}
-
-# ###############################################################################
-# # We then proceed to define the GCN module. A GCN layer essentially performs
-# # message passing on all the nodes then applies the `NodeApplyModule`. Note
-# # that we omitted the dropout in the paper for simplicity.
-
-<< << << < HEAD
-
-# class GCN(nn.Module):
-#     def __init__(self, in_feats, out_feats, activation):
-#         super(GCN, self).__init__()
-#         self.apply_mod = NodeApplyModule(in_feats, out_feats, activation)
-
-#     def forward(self, g, feature):
-#         g.ndata['h'] = feature
-#         g.update_all(gcn_msg, gcn_reduce)
-#         g.apply_nodes(func=self.apply_mod)
-#         return g.ndata.pop('h')
-== == == =
-
-
-class GCN(nn.Module):
-    def __init__(self, in_feats, out_feats, activation):
-        super(GCN, self).__init__()
-        self.apply_mod = NodeApplyModule(in_feats, out_feats, activation)
-
-    def forward(self, g, feature):
-        g.ndata['h'] = feature
-        g.update_all(gcn_msg, gcn_reduce)
-        g.apply_nodes(func=self.apply_mod)
-        return g.ndata.pop('h')
-
-
->>>>>> > 65cda8f9482f7302bd187f13dee54c08ca1c2739
-
-###############################################################################
-# The forward function is essentially the same as any other commonly seen NNs
-# model in PyTorch.  We can initialize GCN like any ``nn.Module``. For example,
-# let's define a simple neural network consisting of two GCN layers. Suppose we
-# are training the classifier for the cora dataset (the input feature size is
-# 1433 and the number of classes is 7).
-
 
 class Net(nn.Module):
     def __init__(self):
@@ -121,16 +45,6 @@ class Net(nn.Module):
         torch.nn.init.xavier_uniform(self.linear3.weight)
         torch.nn.init.xavier_uniform(self.linear4.weight)
 
-        #self.l1 = nn.Linear(2,64,bias=False)
-        #self.l2 = nn.Linear(64,2,bias=False)
-        #self.l3 = nn.Linear(64,2,bias=False)
-
-        # self.gcn1 = GCN(3, 16, t.tanh)
-        # #self.gcn11 = GCN(16, 16, t.tanh)
-        # #self.gcn111 = GCN(64, 32, F.relu)
-        # self.gcn2 = GCN(52, 3, t.tanh)
-        # self.gcn2_ = GCN(52, 3, t.tanh)
-
         self.policy_history = Variable(torch.Tensor())
         self.reward_episode = []
         # Overall reward and loss history
@@ -139,13 +53,8 @@ class Net(nn.Module):
         self.gamma = 0.99
 
     def forward(self, features, uncertainty):
-        # N = features.shape[0]
-        # Convolution part for Uncertainty Map
-        #print("uncertainty_forward_in: ", uncertainty)
         out1 = F.relu(self.conv1(uncertainty))
-        #print("uncertain_conv1_output: ", out1)
         out2 = F.relu(self.pool(out1))
-        #print("uncertain_conv2_output: ", out2)
         out3 = F.relu(self.conv2(out2))
         #print("uncertain_conv3_output: ", out3)
         out4 = F.relu(self.pool(out3))
@@ -164,7 +73,6 @@ class Net(nn.Module):
 
         # Uncertainty FCN and Features FCN are combined
         x = torch.cat((features_fcn, uncertain_fcn), 1)
-        print("x: ", x)
 
         mu = F.relu(self.linear3(x))
         sigma = F.relu(self.linear4(x))
@@ -188,12 +96,4 @@ class Net(nn.Module):
         # mu = self.gcn2(g, y)
         # # print ("mu: ", mu.size())
         # sigma = self.gcn2_(g,y)
-
-    def forward(self, g, features):
-        x = self.gcn1(g, features)
-        #x = F.relu(self.l1(features))
-        #mu = F.relu(self.l2(x))
-        #sigma = F.relu(self.l3(x))
-        mu = self.gcn2(g, x)
-        sigma = self.gcn2_(g, x)
         return mu, sigma
