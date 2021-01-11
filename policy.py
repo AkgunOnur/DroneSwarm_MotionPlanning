@@ -64,8 +64,14 @@ class Net(nn.Module):
 	def __init__(self):
 		super(Net, self).__init__()
 		# input 164x164
-		self.conv = nn.Conv2d(in_channels=1, out_channels= 1, kernel_size= 7, stride=2)
+		self.conv1 = nn.Conv2d(in_channels=1, out_channels= 3, kernel_size= 7, stride=2)
+		self.conv2 = nn.Conv2d(in_channels=3, out_channels= 3, kernel_size= 7, stride=2)
+		self.conv3 = nn.Conv2d(in_channels=5, out_channels= 3, kernel_size= 7, stride=2)
 		self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+		self.linear1 = nn.Linear(192,12)
+		self.linear2 = nn.Linear(3,3)
+		self.linear3 = nn.Linear(15,3)
+		self.linear4 = nn.Linear(15,3)
 		#self.l1 = nn.Linear(2,64,bias=False)
 		#self.l2 = nn.Linear(64,2,bias=False)
 		#self.l3 = nn.Linear(64,2,bias=False)
@@ -87,35 +93,56 @@ class Net(nn.Module):
 		self.loss_history = []
 		self.gamma = 0.99
 
-	def forward(self, g, features, uncertainty):
-		N = features.shape[0]
-		# Convolution part
-		out1 = F.relu(self.conv(uncertainty))
+	def forward(self, features, uncertainty):
+		# N = features.shape[0]
+		# Convolution part for Uncertainty Map
+		print ("uncertainty_forward_in: ", uncertainty)
+		out1 = F.relu(self.conv1(uncertainty))
+		print ("uncertain_conv1_output: " , out1)
 		out2 = F.relu(self.pool(out1)) 
-		out3 = F.relu(self.conv(out2))
+		print ("uncertain_conv2_output: " , out2)
+		out3 = F.relu(self.conv2(out2))
+		print ("uncertain_conv3_output: " , out3)
 		out4 = F.relu(self.pool(out3)) 
-		out5 = F.relu(self.conv(out3)) 
-		out5 = out5.view(1, -1)
-		# print ("out: ", out5.size())
+		print ("uncertain_conv4_output: " , out4)
+		# out5 = F.relu(self.conv2(out4)) 
+		# print ("uncertain_conv5_output: " , out5)
+		out5 = out4.view(1, -1)
+		print ("uncertain_conv_output: " ,out5.shape)
+
+		# Fully Connected Layer for Uncertainty Map
+		uncertain_fcn = F.relu(self.linear1(out5)) 
+		print ("uncertain_fcn_output: " ,uncertain_fcn)
+
+
+		# Fully Connected Layer for Features
+		features_fcn = F.relu(self.linear2(features)) 
+
+		#Uncertainty FCN and Features FCN are combined
+		x = torch.cat((features_fcn, uncertain_fcn), 1)
+
+		mu = F.relu(self.linear3(x))
+		sigma = F.relu(self.linear4(x))
+
 		
-		# Repeating uncertainty feature (1x36) for each agent (n_agentx36)
-		out5 = out5.repeat(N,1)
-		# print ("out: ", out5.size())
+		# # Repeating uncertainty feature (1x36) for each agent (n_agentx36)
+		# out5 = out5.repeat(N,1)
+		# # print ("out: ", out5.size())
 
-		# First graph output (n_agentx16)
-		x = self.gcn1(g, features)
-		# print ("x: ", x.size())
+		# # First graph output (n_agentx16)
+		# x = self.gcn1(g, features)
+		# # print ("x: ", x.size())
 
-		# Concatenate uncertainty output and graph output (n_agentx52)
-		y = torch.cat((x, out5), 1)
-		# print ("y: ", y.size())
-		#x = F.relu(self.l1(features))
-		#mu = F.relu(self.l2(x))
-		#sigma = F.relu(self.l3(x))
+		# # Concatenate uncertainty output and graph output (n_agentx52)
+		# y = torch.cat((x, out5), 1)
+		# # print ("y: ", y.size())
+		# #x = F.relu(self.l1(features))
+		# #mu = F.relu(self.l2(x))
+		# #sigma = F.relu(self.l3(x))
 
-		# Last graph output (n_agentx3)
-		mu = self.gcn2(g, y)
-		# print ("mu: ", mu.size())
-		sigma = self.gcn2_(g,y)
+		# # Last graph output (n_agentx3)
+		# mu = self.gcn2(g, y)
+		# # print ("mu: ", mu.size())
+		# sigma = self.gcn2_(g,y)
 		return mu, sigma
 

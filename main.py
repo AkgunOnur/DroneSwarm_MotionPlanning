@@ -50,18 +50,19 @@ def main(episodes):
 	for episode in range(episodes):
 		reward_over_eps = []
 		agent_obs = env.reset() # Reset environment and record the starting state
-		g = build_graph(env)
+		# g = build_graph(env)
 		done = False
 	
 		state, uncertainty_mat = agent_obs
 		print ("state: ", state)
-		print ("uncertainty: ", uncertainty_mat)
-		for time in range(1):
+		print ("uncertainty_original: ", uncertainty_mat)
+
+		for time in range(100):
 
 			#if episode%50==0:
 			#env.render()
 			#g = build_graph(env)
-			action = select_action(state,uncertainty_mat,g,policy)
+			action = select_action(state,uncertainty_mat,policy)
 			action = action.numpy()
 
 			print ("\n")

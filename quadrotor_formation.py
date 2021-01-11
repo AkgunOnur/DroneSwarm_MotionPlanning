@@ -40,7 +40,7 @@ class QuadrotorFormation(gym.Env):
         self.n_action = 3
         
         # problem parameters from file
-        self.n_agents = 4
+        self.n_agents = 1
         self.comm_radius = float(config['comm_radius'])
         self.comm_radius2 = self.comm_radius * self.comm_radius
         self.dt = float(config['system_dt'])
@@ -91,8 +91,9 @@ class QuadrotorFormation(gym.Env):
 
         X,Y,Z = np.mgrid[-self.x_lim:self.x_lim+0.1:self.res, -self.y_lim:self.y_lim+0.1:self.res, 0:self.z_lim+0.1:self.res]
         self.uncertainty_grids = np.vstack((X.flatten(), Y.flatten(), Z.flatten())).T
-        self.uncertainty_values = np.ones((self.uncertainty_grids.shape[0], ))
-        self.grid_visits = np.ones((self.uncertainty_grids.shape[0], ))
+        #self.uncertainty_values = np.ones((self.uncertainty_grids.shape[0], ))
+        self.uncertainty_values = np.random.uniform(low=0.95, high=1.0, size=(self.uncertainty_grids.shape[0],))
+        self.grid_visits = np.zeros((self.uncertainty_grids.shape[0], ))
 
         self.fig = None
         self.line1 = None
@@ -177,7 +178,8 @@ class QuadrotorFormation(gym.Env):
                     differences = current_pos-self.uncertainty_grids
                     distances = np.sum(differences*differences,axis=1)
                     min_ind = np.argmin(distances)
-                    self.uncertainty_values[min_ind] = 0.1
+                    self.grid_visits[min_ind] += 1
+                    self.uncertainty_values[min_ind] = np.clip(np.exp(-self.grid_visits[min_ind] / 2), 1e-3, 1.0)
 
                     # print ("current_pos: ", current_pos)
                     # print ("closest grid: ", self.uncertainty_grids[min_ind])
@@ -207,10 +209,10 @@ class QuadrotorFormation(gym.Env):
             self.agent_features[i,2] = self.quadrotors[i].state[2] - 0*self.agent_pos_goal[i,2]
 
         uncertainty_mat = np.reshape(self.uncertainty_values, (1, 1, self.out_shape, self.out_shape))
-        if self.dynamic:
-            state_network = self.get_connectivity(self.x)
-        else:
-            state_network = self.a_net
+        # if self.dynamic:
+        #     state_network = self.get_connectivity(self.x)
+        # else:
+        #     state_network = self.a_net
 
         #return (state_values, state_network)
         return self.agent_features, uncertainty_mat
@@ -234,7 +236,8 @@ class QuadrotorFormation(gym.Env):
         self.counter = 0
         self.agent_pos_goal = np.zeros((self.n_agents, self.n_action))
         self.agent_pos_start = np.zeros((self.n_agents, self.n_action))
-        self.uncertainty_values = np.ones((self.uncertainty_grids.shape[0], ))
+        self.uncertainty_values = np.random.uniform(low=0.95, high=1.0, size=(self.uncertainty_grids.shape[0],))
+        self.grid_visits = np.zeros((self.uncertainty_grids.shape[0], ))
 
         eps = 5.0
         
@@ -282,11 +285,9 @@ class QuadrotorFormation(gym.Env):
         a_net = a_net < self.comm_radius2
         degree = np.min(np.sum(a_net.astype(int), axis=1))
 
-        self.x = x
+        # self.x = x
 
-        self.a_net = self.get_connectivity(self.x)
-
-        init_action = self.agent_pos_goal
+        # self.a_net = self.get_connectivity(self.x)
 
         #pdb.set_trace()
         return self._get_obs()

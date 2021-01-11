@@ -32,16 +32,16 @@ def normal(x, mu, sigma_sq):
 	return a*b
 
 
-def select_action(state,uncertainty,g,policy):
+def select_action(state,uncertainty,policy):
 	
 	state = Variable(torch.FloatTensor(state))
 	uncertainty = Variable(torch.FloatTensor(uncertainty))
 
-	mu, sigma = policy(g,state,uncertainty)
+	mu, sigma = policy(state,uncertainty)
 
 	sigma = F.softplus(sigma)
 	eps = torch.randn(mu.size())
-	action = (20*mu + sigma.sqrt()*Variable(eps)).data
+	action = (mu + sigma.sqrt()*Variable(eps)).data
 	prob = normal(action, mu, sigma)
 
 	prob2= torch.prod(prob.reshape(-1))
