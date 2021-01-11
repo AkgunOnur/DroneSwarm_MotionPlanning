@@ -35,88 +35,81 @@ optimizer = optim.Adam(policy.parameters(), lr=1e-3)
 env = QuadrotorFormation()
 
 if not os.path.exists('./models'):
-	os.makedirs('./models')
+    os.makedirs('./models')
 
-filename = str(datetime.datetime.now())+str('_%dagents_fixed_fcnpolicy'%env.n_agents)
-filename = filename+str('.pt')
+filename = str(datetime.datetime.now()) + \
+    str('_%dagents_fixed_fcnpolicy' % env.n_agents)
+filename = filename + str('.pt')
 filename = "3agents.pt"
-torch.save(policy.state_dict(),'./models/%s'%filename)
+torch.save(policy.state_dict(), './models/%s' % filename)
 
 
 def main(episodes):
-	running_reward = 10
-	plotting_rew = []
+    running_reward = 10
+    plotting_rew = []
 
-	for episode in range(episodes):
-		reward_over_eps = []
-		agent_obs = env.reset() # Reset environment and record the starting state
-		# g = build_graph(env)
-		done = False
-	
-		state, uncertainty_mat = agent_obs
-		print ("state: ", state)
-		print ("uncertainty_original: ", uncertainty_mat)
+    for episode in range(episodes):
+        reward_over_eps = []
+        agent_obs = env.reset()  # Reset environment and record the starting state
+        # g = build_graph(env)
+        done = False
 
-		for time in range(100):
+        state, uncertainty_mat = agent_obs
+        # print ("state: ", state)
+        # print ("uncertainty_original: ", uncertainty_mat)
 
-			#if episode%50==0:
-			#env.render()
-			#g = build_graph(env)
-			action = select_action(state,uncertainty_mat,policy)
-			action = action.numpy()
+        for time in range(100):
 
-			print ("\n")
-			for i in range(action.shape[0]):
-				print ("Agent {3} Target X: {0:.4}, Y: {0:.4}, Z: {2:.4}".format(action[i][0], action[i][1], action[i][2], i+1))
+            # if episode%50==0:
+            # env.render()
+            #g = build_graph(env)
+            action = select_action(state, uncertainty_mat, policy)
+            action = action.numpy()
 
-			action = np.reshape(action,[-1])
-			# Step through environment using chosen action
-			action = np.clip(action,-env.max_action,env.max_action)
-			
-			agent_obs, reward, done, _ = env.step(action)
-			state, uncertainty_mat = agent_obs
+            print("\n")
+            for i in range(action.shape[0]):
+                print("Agent {3} Target X: {0:.4}, Y: {0:.4}, Z: {2:.4}".format(
+                    action[i][0], action[i][1], action[i][2], i + 1))
 
+            action = np.reshape(action, [-1])
+            # Step through environment using chosen action
+            action = np.clip(action, -env.max_action, env.max_action)
 
-			reward_over_eps.append(reward)
-			# Save reward
-			policy.reward_episode.append(reward)
-			if done:
-				break
+            agent_obs, reward, done, _ = env.step(action)
+            state, uncertainty_mat = agent_obs
 
-		# Used to determine when the environment is solved.
-		running_reward = (running_reward * 0.99) + (time * 0.01)
+            reward_over_eps.append(reward)
+            # Save reward
+            policy.reward_episode.append(reward)
+            if done:
+                break
 
-		update_policy(policy,optimizer)
+        # Used to determine when the environment is solved.
+        running_reward = (running_reward * 0.99) + (time * 0.01)
+        if(episode >= 3):
+            update_policy(policy, optimizer)
 
-		if episode % 1 == 0:
-			print('Episode {}\tLast length: {:5d}\tAverage running reward: {:.2f}\tAverage reward over episode: {:.2f}'.format(episode, time, running_reward, np.mean(reward_over_eps)))
+        if episode % 1 == 0:
+            print('Episode {}\tLast length: {:5d}\tAverage running reward: {:.2f}\tAverage reward over episode: {:.2f}'.format(
+                episode, time, running_reward, np.mean(reward_over_eps)))
 
-		if episode % 5000 == 0 :
-			torch.save(policy.state_dict(),'./models/%s'%filename)
+        if episode % 5000 == 0:
+            torch.save(policy.state_dict(), './models/%s' % filename)
 
+        plotting_rew.append(np.mean(reward_over_eps))
+    # pdb.set_trace()
+    np.savetxt('Relative_Goal_Reaching_for_%d_agents_rs_rg.txt' %
+               (env.n_agents), plotting_rew)
+    fig = plt.figure()
+    x = np.linspace(0, len(plotting_rew), len(plotting_rew))
+    plt.plot(x, plotting_rew)
+    plt.savefig('Relative_Goal_Reaching_for_%d_agents_rs_rg.png' %
+                (env.n_agents))
+    plt.show()
 
-		plotting_rew.append(np.mean(reward_over_eps))
-	#pdb.set_trace()
-	np.savetxt('Relative_Goal_Reaching_for_%d_agents_rs_rg.txt' %(env.n_agents), plotting_rew)
-	fig = plt.figure()
-	x = np.linspace(0,len(plotting_rew),len(plotting_rew))
-	plt.plot(x,plotting_rew)
-	plt.savefig('Relative_Goal_Reaching_for_%d_agents_rs_rg.png' %(env.n_agents))
-	plt.show()
-
-	#pdb.set_trace()
+    # pdb.set_trace()
 
 
 if __name__ == "__main__":
-	episodes = 5000
-	main(episodes)
-
-
-
-
-
-
-
-
-
-
+    episodes = 5000
+    main(episodes)
