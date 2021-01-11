@@ -5,19 +5,16 @@ import pdb
 import dgl
 import torch.nn as nn
 import torch.nn.functional as F
-import torch as t
+import torch
 from make_g import build_graph
 import torch.optim as optim
-import dgl
 import dgl.function as fn
 import math
-import pdb
 
 from torch.autograd import Variable
 from torch.distributions import Categorical
-import torch
 import networkx as nx
-import pdb
+>>>>>> > 65cda8f9482f7302bd187f13dee54c08ca1c2739
 import matplotlib.pyplot as plt
 from policy import Net
 from make_g import build_graph
@@ -42,6 +39,7 @@ def select_action(state, uncertainty, policy):
     sigma = F.softplus(sigma)
     eps = torch.randn(mu.size())
     action = (mu + sigma.sqrt() * Variable(eps)).data
+
     prob = normal(action, mu, sigma)
 
     prob2 = torch.prod(prob.reshape(-1))
@@ -79,7 +77,8 @@ def update_policy(policy, optimizer):
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
-    # Save and intialize episode history counters
+
+# Save and intialize episode history counters
 
     policy.loss_history.append(loss.item())
     policy.reward_history.append(np.sum(policy.reward_episode))

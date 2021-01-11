@@ -1,3 +1,4 @@
+# Import libraries
 import gym
 from gym import spaces, error, utils
 from gym.utils import seeding
@@ -20,7 +21,6 @@ font = {'family': 'sans-serif',
 
 
 class QuadrotorFormation(gym.Env):
-
     def __init__(self):
 
         config_file = path.join(path.dirname(__file__), "formation_flying.cfg")
@@ -39,6 +39,13 @@ class QuadrotorFormation(gym.Env):
         self.nx_system = self.n_features + 3
         # number of actions per agent which are desired positions and yaw angle
         self.n_action = 3
+
+
+<< << << < HEAD
+== == == =
+        self.x_lim = 50.0  # figure x limit
+        self.y_lim = 50.0  # figure y limit
+>>>>>> > 65cda8f9482f7302bd187f13dee54c08ca1c2739
 
         # problem parameters from file
         self.n_agents = 1
@@ -68,6 +75,7 @@ class QuadrotorFormation(gym.Env):
         self.v_average = 1.5
         self.period_denum = 3.0
         self.dtau = 1e-3
+        self.quadrotors = [Quadrotor(state0)] * self.n_agents
 
         # intitialize state matrices
         self.total_states = np.zeros((self.n_agents, self.nx_system))
@@ -81,6 +89,7 @@ class QuadrotorFormation(gym.Env):
         self.action_space = spaces.Box(low=-self.max_action, high=self.max_action, shape=(
             self.n_action * self.n_agents,), dtype=np.float32)
 
+        # an unused variable
         self.observation_space = spaces.Box(low=-np.Inf, high=np.Inf, shape=(self.n_agents, self.n_features),
                                             dtype=np.float32)
 
@@ -95,7 +104,7 @@ class QuadrotorFormation(gym.Env):
                            self.y_lim:self.y_lim + 0.1:self.res, 0:self.z_lim + 0.1:self.res]
         self.uncertainty_grids = np.vstack(
             (X.flatten(), Y.flatten(), Z.flatten())).T
-        #self.uncertainty_values = np.ones((self.uncertainty_grids.shape[0], ))
+        # self.uncertainty_values = np.ones((self.uncertainty_grids.shape[0], ))
         self.uncertainty_values = np.random.uniform(
             low=0.95, high=1.0, size=(self.uncertainty_grids.shape[0],))
         self.grid_visits = np.zeros((self.uncertainty_grids.shape[0], ))
@@ -109,8 +118,9 @@ class QuadrotorFormation(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
+    # Environment step function
     def step(self, action):
-        #self.nu = 1
+        # self.nu = 1
         self.agent_targets = np.reshape(action, (self.n_agents, self.n_action))
         self.fail_check = np.zeros(self.n_agents)
         eps = 1.5
@@ -122,6 +132,16 @@ class QuadrotorFormation(gym.Env):
 
         # for i in range(self.n_agents):
         #     print ("Agent State: ", self.quadrotors[i].state)
+
+        for i in range(self.n_agents):
+            #     ref_traj = [xd[i], yd[i], zd[i], xd_dot[i], yd_dot[i], zd_dot[i],
+            #                 xd_ddot[i], yd_ddot[i], zd_ddot[i], xd_dddot[i], yd_dddot[i],
+            #                 xd_ddddot[i], yd_ddddot[i], psid[i], psid_dot[i], psid_ddot[i]]
+            xd, yd, zd = self.agent_targets[i][0], self.agent_targets[i][1], self.agent_targets[i][2]
+            ref_traj = [xd, yd, zd, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            self.fail_check[i] = int(self.quadrotors[i].simulate(ref_traj))
+            self.diff_target[i][:] = self.quadrotors[i].state[0:3] - \
+                self.agent_targets[i][:]
 
         for i in range(self.n_agents):
             xd, yd, zd = self.agent_targets[i][0], self.agent_targets[i][1], self.agent_targets[i][2]
@@ -242,6 +262,7 @@ class QuadrotorFormation(gym.Env):
 
         return -np.sqrt(cost)
 
+    # Environment reset function
     def reset(self):
         x = np.zeros((self.n_agents, 2 * self.n_action))
         self.agent_features = np.zeros((self.n_agents, self.n_action))
@@ -256,7 +277,7 @@ class QuadrotorFormation(gym.Env):
             low=0.95, high=1.0, size=(self.uncertainty_grids.shape[0],))
         self.grid_visits = np.zeros((self.uncertainty_grids.shape[0], ))
 
-        eps = 5.0
+        eps = 2.0
 
         goal_locations = [(uniform(-self.x_lim - eps, -self.x_lim + eps), uniform(-self.y_lim - eps, -self.y_lim + eps), uniform(5 - eps, 5 + eps)),
                           (uniform(-self.x_lim - eps, -self.x_lim + eps),
@@ -310,7 +331,23 @@ class QuadrotorFormation(gym.Env):
 
         # pdb.set_trace()
         return self._get_obs()
+    def _get_obs(self):
 
+        for i in range(self.n_agents):
+            self.agent_features[i, 0] = self.quadrotors[i].state[0] - \
+                self.agent_pos_goal[i, 0]
+            self.agent_features[i, 1] = self.quadrotors[i].state[1] - \
+                self.agent_pos_goal[i, 1]
+            self.agent_features[i, 2] = self.quadrotors[i].state[2] - \
+                self.agent_pos_goal[i, 2]
+
+        if self.dynamic:
+            state_network = self.get_connectivity(self.x)
+        else:
+            state_network = self.a_net
+
+        # return (state_values, state_network)
+        return self.agent_features
     def dist2_mat(self, x):
 
         x_loc = np.reshape(x[:, 0:3], (self.n_agents, 3, 1))
@@ -339,6 +376,7 @@ class QuadrotorFormation(gym.Env):
 
         return a_net
 
+    # Environment render function
     def render(self, mode='human'):
         """
         Render the environment with agents as points in 2D space
@@ -362,7 +400,7 @@ class QuadrotorFormation(gym.Env):
             # line1, = ax.plot(self.x[:, 0], self.x[:, 1], linestyle='-', color='y',markerfacecolor='blue', marker='o')  # Returns a tuple of line objects, thus the comma
             # Returns a tuple of line objects, thus the comma
             line1, = ax.plot(self.x[:, 0], self.x[:, 1], 'bo')
-            #line1 = ax.plot(x[edge_list.T], y[edge_list.T], linestyle='-', color='y',markerfacecolor='red', marker='o')
+            # line1 = ax.plot(x[edge_list.T], y[edge_list.T], linestyle='-', color='y',markerfacecolor='red', marker='o')
 
             ax.plot([0], [0], 'kx')
             ax.plot(self.agent_pos_start[:, 0],

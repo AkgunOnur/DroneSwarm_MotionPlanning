@@ -26,12 +26,29 @@ import matplotlib.pyplot as plt
 ###############################################################################
 # We then define the node UDF for ``apply_nodes``, which is a fully-connected layer:
 
+<< << << < HEAD
 
 # class NodeApplyModule(nn.Module):
 #     def __init__(self, in_feats, out_feats, activation):
 #         super(NodeApplyModule, self).__init__()
 #         self.linear = nn.Linear(in_feats, out_feats)
 #         self.activation = activation
+== == == =
+
+
+class NodeApplyModule(nn.Module):
+    def __init__(self, in_feats, out_feats, activation):
+        super(NodeApplyModule, self).__init__()
+        self.linear = nn.Linear(in_feats, out_feats)
+        self.activation = activation
+
+    def forward(self, node):
+        h = self.linear(node.data['h'])
+        h = self.activation(h)
+        return {'h': h}
+
+
+>>>>>> > 65cda8f9482f7302bd187f13dee54c08ca1c2739
 
 #     def forward(self, node):
 #         h = self.linear(node.data['h'])
@@ -43,6 +60,7 @@ import matplotlib.pyplot as plt
 # # message passing on all the nodes then applies the `NodeApplyModule`. Note
 # # that we omitted the dropout in the paper for simplicity.
 
+<< << << < HEAD
 
 # class GCN(nn.Module):
 #     def __init__(self, in_feats, out_feats, activation):
@@ -54,6 +72,22 @@ import matplotlib.pyplot as plt
 #         g.update_all(gcn_msg, gcn_reduce)
 #         g.apply_nodes(func=self.apply_mod)
 #         return g.ndata.pop('h')
+== == == =
+
+
+class GCN(nn.Module):
+    def __init__(self, in_feats, out_feats, activation):
+        super(GCN, self).__init__()
+        self.apply_mod = NodeApplyModule(in_feats, out_feats, activation)
+
+    def forward(self, g, feature):
+        g.ndata['h'] = feature
+        g.update_all(gcn_msg, gcn_reduce)
+        g.apply_nodes(func=self.apply_mod)
+        return g.ndata.pop('h')
+
+
+>>>>>> > 65cda8f9482f7302bd187f13dee54c08ca1c2739
 
 ###############################################################################
 # The forward function is essentially the same as any other commonly seen NNs
@@ -96,9 +130,6 @@ class Net(nn.Module):
         # #self.gcn111 = GCN(64, 32, F.relu)
         # self.gcn2 = GCN(52, 3, t.tanh)
         # self.gcn2_ = GCN(52, 3, t.tanh)
-
-        #self.gcn2 = GCN(16, 2, t.tanh)
-        #self.gcn2_ = GCN(16,2,t.tanh)
 
         self.policy_history = Variable(torch.Tensor())
         self.reward_episode = []
@@ -157,4 +188,12 @@ class Net(nn.Module):
         # mu = self.gcn2(g, y)
         # # print ("mu: ", mu.size())
         # sigma = self.gcn2_(g,y)
+
+    def forward(self, g, features):
+        x = self.gcn1(g, features)
+        #x = F.relu(self.l1(features))
+        #mu = F.relu(self.l2(x))
+        #sigma = F.relu(self.l3(x))
+        mu = self.gcn2(g, x)
+        sigma = self.gcn2_(g, x)
         return mu, sigma
