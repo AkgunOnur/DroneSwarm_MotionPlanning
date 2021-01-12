@@ -282,7 +282,6 @@ class Quadrotor:
         if (np.abs(self.state[3]) > np.pi/2)  | (np.abs(self.state[4]) > np.pi/2):
             self.costValue = 1e12
             fail_check = True
-            print ("Drone has crashed!")
         else:
             target = [current_traj[0], current_traj[1], current_traj[2], current_traj[13]]
 

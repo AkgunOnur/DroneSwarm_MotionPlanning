@@ -74,7 +74,7 @@ class Net(nn.Module):
         # Uncertainty FCN and Features FCN are combined
         x = torch.cat((features_fcn, uncertain_fcn), 1)
 
-        mu = F.relu(self.linear3(x))
+        mu = F.tanh(self.linear3(x))
         sigma = F.relu(self.linear4(x))
 
         # # Repeating uncertainty feature (1x36) for each agent (n_agentx36)
