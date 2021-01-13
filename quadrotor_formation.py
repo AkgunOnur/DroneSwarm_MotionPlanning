@@ -59,14 +59,14 @@ class QuadrotorFormation(gym.Env):
         #                                  7: minimum accel_stop        8: minimum jerk_stop        9: minimum snap_stop
         #                                 10: minimum jerk_full_stop   11: minimum snap_full_stop
         #                                 12: pos_waypoint_arrived
-        self.trajSelect[0] = 4
+        self.trajSelect[0] = 3
         # Select Yaw Trajectory Type      (0: none                      1: yaw_waypoint_timed,      2: yaw_waypoint_interp     3: follow          4: zero)
         self.trajSelect[1] = 2
         # Select if waypoint time is used, or if average speed is used to calculate waypoint time   (0: waypoint time,   1: average speed)
         self.trajSelect[2] = 1
 
-        self.v_average = 1.5
-        self.period_denum = 3.0
+        self.v_average = 1.0
+        self.period_denum = 1.0
         self.dtau = 1e-3
 
         # intitialize state matrices
@@ -76,7 +76,7 @@ class QuadrotorFormation(gym.Env):
 
         self.a_net = np.zeros((self.n_agents, self.n_agents))
 
-        self.max_action = 50
+        self.max_action = 50.0
         self.gain = 1.0  # TODO - adjust if necessary - may help the NN performance
         self.action_space = spaces.Box(low=-self.max_action, high=self.max_action, shape=(
             self.n_action * self.n_agents,), dtype=np.float32)
@@ -113,10 +113,11 @@ class QuadrotorFormation(gym.Env):
         #self.nu = 1
         self.agent_targets = np.reshape(action, (self.n_agents, self.n_action))
         self.fail_check = np.zeros(self.n_agents)
-        eps = 1.5
+        eps = 0.25
         done = False
         traj_list = []
         drone_crash = False
+        reward = 0
 
         # self.agent_targets = np.copy(self.agent_pos_goal)
 
@@ -141,11 +142,11 @@ class QuadrotorFormation(gym.Env):
             Waypoint_length = flight_period // self.dtau
             t_list = np.linspace(0, flight_period, num=int(Waypoint_length))
 
-            print("\n Agent {0}".format(i + 1))
-            print("Initial X:{0:.3}, Y:{1:.3}, Z:{2:.3} ".format(
-                pos0[0], pos0[1], pos0[2]))
-            print("Target X:{0:.3}, Y:{1:.3}, Z:{2:.3} in {3:.3} s. ".format(
-                xd, yd, zd, newTraj.t_wps[1]))
+            # print("\n Agent {0}".format(i + 1))
+            # print("Initial X:{0:.3}, Y:{1:.3}, Z:{2:.3} ".format(
+            #     pos0[0], pos0[1], pos0[2]))
+            # print("Target X:{0:.3}, Y:{1:.3}, Z:{2:.3} in {3:.3} s. ".format(
+            #     xd, yd, zd, newTraj.t_wps[1]))
 
             for ind, t_current in enumerate(t_list):
                 pos_des, vel_des, acc_des, euler_des = newTraj.desiredState(
@@ -185,10 +186,13 @@ class QuadrotorFormation(gym.Env):
                 current_pos = [self.quadrotors[i].state[0],
                                self.quadrotors[i].state[1], self.quadrotors[i].state[2]]
 
-                if ind % 150 == 0:
+                reward -= 0.001
+
+                if ind % 100 == 0:
                     differences = current_pos - self.uncertainty_grids
                     distances = np.sum(differences * differences, axis=1)
                     min_ind = np.argmin(distances)
+                    reward += self.uncertainty_values[min_ind]
                     self.grid_visits[min_ind] += 1
                     self.uncertainty_values[min_ind] = np.clip(
                         np.exp(-self.grid_visits[min_ind] / 2), 1e-3, 1.0)
@@ -196,22 +200,19 @@ class QuadrotorFormation(gym.Env):
                     # print ("current_pos: ", current_pos)
                     # print ("closest grid: ", self.uncertainty_grids[min_ind])
 
-            self.diff_target[i][:] = self.quadrotors[i].state[0:3] - \
-                self.agent_targets[i][:]
+            # self.diff_target[i][:] = self.quadrotors[i].state[0:3] - \
+            #     self.agent_targets[i][:]
 
-            print("Final  X:{0:.3}, Y:{1:.3}, Z:{2:.3} for agent {3}: ".format(
-                self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2], i))
+            # print("Final  X:{0:.3}, Y:{1:.3}, Z:{2:.3}, Reward:{3:.3} for agent {4}: ".format(
+            #     self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2], reward, i))
 
         if drone_crash:
             done = True
             reward = -1e4
-            return self._get_obs(), reward, done, {}
+        elif np.sum(self.diff_target[:, 0]) < eps and np.sum(self.diff_target[:, 1]) < eps and np.sum(self.diff_target[:, 2]) < eps:
+            reward += 1
 
-        if np.sum(self.diff_target[:, 0]) < eps and np.sum(self.diff_target[:, 1]) < eps and np.sum(self.diff_target[:, 2]) < eps:
-            reward = 1e4
-            done = True
-
-        return self._get_obs(), self.instant_cost(), done, {}
+        return self._get_obs(), reward, done, {}
 
     def _get_obs(self):
 
@@ -245,6 +246,7 @@ class QuadrotorFormation(gym.Env):
     def reset(self):
         x = np.zeros((self.n_agents, 2 * self.n_action))
         self.agent_features = np.zeros((self.n_agents, self.n_action))
+        self.quadrotors = []
         degree = 0
         min_dist = 0
         min_dist_thresh = 0.01  # 0.25

@@ -29,7 +29,7 @@ def normal(x, mu, sigma_sq):
 
 
 def select_action(state, uncertainty, policy):
-
+    #print ("state: ", state)
     state = Variable(torch.FloatTensor(state))
     uncertainty = Variable(torch.FloatTensor(uncertainty))
 
@@ -56,7 +56,6 @@ def select_action(state, uncertainty, policy):
 
 
 def update_policy(policy, optimizer):
-
     R = 0
     rewards = []
 
