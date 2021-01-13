@@ -75,7 +75,7 @@ class Net(nn.Module):
         x = torch.cat((features_fcn, uncertain_fcn), 1)
 
         mu = F.tanh(self.linear3(x))
-        sigma = F.relu(self.linear4(x))
+        sigma = F.tanh(self.linear4(x))
 
         # # Repeating uncertainty feature (1x36) for each agent (n_agentx36)
         # out5 = out5.repeat(N,1)

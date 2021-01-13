@@ -190,7 +190,7 @@ class QuadrotorFormation(gym.Env):
                 current_pos = [self.quadrotors[i].state[0],
                                self.quadrotors[i].state[1], self.quadrotors[i].state[2]]
 
-                reward -= 0.001
+                reward -= 0.00025
 
                 if ind % 100 == 0:
                     if self.visualization:
@@ -198,7 +198,7 @@ class QuadrotorFormation(gym.Env):
                     differences = current_pos - self.uncertainty_grids
                     distances = np.sum(differences * differences, axis=1)
                     min_ind = np.argmin(distances)
-                    reward += self.uncertainty_values[min_ind]
+                    reward += 5*self.uncertainty_values[min_ind]
                     self.grid_visits[min_ind] += 1
                     self.uncertainty_values[min_ind] = np.clip(
                         np.exp(-self.grid_visits[min_ind] / 2), 1e-3, 1.0)
@@ -206,8 +206,7 @@ class QuadrotorFormation(gym.Env):
                     # print ("current_pos: ", current_pos)
                     # print ("closest grid: ", self.uncertainty_grids[min_ind])
 
-            # self.diff_target[i][:] = self.quadrotors[i].state[0:3] - \
-            #     self.agent_targets[i][:]
+            self.diff_target[i][:] = self.quadrotors[i].state[0:3] - self.agent_targets[i][:]
 
             print("Final  X:{0:.3}, Y:{1:.3}, Z:{2:.3}, Reward:{3:.3} for agent {4}: ".format(
                 self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2], reward, i))
@@ -215,8 +214,8 @@ class QuadrotorFormation(gym.Env):
         if drone_crash:
             done = True
             reward = -1e4
-        elif np.sum(self.diff_target[:, 0]) < eps and np.sum(self.diff_target[:, 1]) < eps and np.sum(self.diff_target[:, 2]) < eps:
-            reward += 1
+        # elif np.sum(self.diff_target[:, 0]) <= eps and np.sum(self.diff_target[:, 1]) <= eps and np.sum(self.diff_target[:, 2]) <= eps:
+        #     reward += 10
 
         return self._get_obs(), reward, done, {}
 
