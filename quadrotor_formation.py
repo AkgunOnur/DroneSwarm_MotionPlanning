@@ -122,7 +122,7 @@ class QuadrotorFormation(gym.Env):
         done = False
         traj_list = []
         drone_crash = False
-        reward = 0
+        reward = 0.0
 
         # self.agent_targets = np.copy(self.agent_pos_goal)
 
@@ -198,17 +198,21 @@ class QuadrotorFormation(gym.Env):
                     differences = current_pos - self.uncertainty_grids
                     distances = np.sum(differences * differences, axis=1)
                     min_ind = np.argmin(distances)
-                    reward += 5*self.uncertainty_values[min_ind]
+                    if self.uncertainty_values[min_ind] < 0.1:
+                        neg_reward = np.clip(np.exp(self.grid_visits[min_ind] / 4), 0, 1e3)
+                        reward -= neg_reward
+                    else:
+                        reward += 100.0*self.uncertainty_values[min_ind]
                     self.grid_visits[min_ind] += 1
                     self.uncertainty_values[min_ind] = np.clip(
-                        np.exp(-self.grid_visits[min_ind] / 2), 1e-3, 1.0)
+                        np.exp(-self.grid_visits[min_ind]), 1e-6, 1.0)
 
                     # print ("current_pos: ", current_pos)
                     # print ("closest grid: ", self.uncertainty_grids[min_ind])
 
             self.diff_target[i][:] = self.quadrotors[i].state[0:3] - self.agent_targets[i][:]
 
-            print("Final  X:{0:.3}, Y:{1:.3}, Z:{2:.3}, Reward:{3:.3} for agent {4}: ".format(
+            print("Final  X:{0:.3}, Y:{1:.3}, Z:{2:.3}, Reward:{3:.5} for agent {4}: ".format(
                 self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2], reward, i))
 
         if drone_crash:

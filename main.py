@@ -42,7 +42,6 @@ torch.save(policy.state_dict(), './models/%s' % filename)
 
 ### main function ###
 def main(episodes):
-    running_reward = 10
     plotting_rew = []
     mean_reward_pr = -np.Inf
 
@@ -56,7 +55,6 @@ def main(episodes):
         # Episode loop
         state, uncertainty_mat = agent_obs
         for time in range(200):
-            # if episode%50==0:
             #g = build_graph(env)
             #print("state: ", state)
             action = select_action(state, uncertainty_mat,  policy)
@@ -71,10 +69,7 @@ def main(episodes):
             # Step through environment using chosen action
             ref_pos[0] = np.clip(ref_pos[0], -env.x_lim, env.x_lim)
             ref_pos[1] = np.clip(ref_pos[1], -env.y_lim, env.y_lim)
-            ref_pos[2] = np.clip(ref_pos[2], 0.5, env.z_lim)
-            
-            # Print goals for all quads
-            
+            ref_pos[2] = np.clip(ref_pos[2], 0.5, env.z_lim)            
 
             agent_obs, reward, done, _ = env.step(ref_pos)
             state, uncertainty_mat = agent_obs
