@@ -29,7 +29,7 @@ warnings.filterwarnings("ignore")
 # Define Policy, optimizer and environment
 policy = Net()
 optimizer = optim.Adam(policy.parameters(), lr=1e-3)
-env = QuadrotorFormation()
+env = QuadrotorFormation(visualization=False)
 
 # generate model folder if not exists
 if not os.path.exists('./models'):
@@ -42,7 +42,6 @@ torch.save(policy.state_dict(), './models/%s' % filename)
 
 ### main function ###
 def main(episodes):
-    running_reward = 10
     plotting_rew = []
     mean_reward_pr = -np.Inf
 
@@ -55,24 +54,23 @@ def main(episodes):
         done = False
         # Episode loop
         state, uncertainty_mat = agent_obs
-        for time in range(250):
-            # if episode%50==0:
-            # env.render()
+        for time in range(200):
             #g = build_graph(env)
             #print("state: ", state)
             action = select_action(state, uncertainty_mat,  policy)
 
             action = action.numpy()
-            pos_target += action
+            #print ("\n action_0: ", action)
+            print("\n Episode: {0}, Iteration: {1}".format(
+                episode + 1, time + 1))
+            print("Action X: {0:.4}, Y: {1:.4}, Z: {2:.4}".format(
+                action[0][0], action[0][1], action[0][2]))
+            pos_target = pos_target + action
             ref_pos = np.reshape(pos_target, [-1])
             # Step through environment using chosen action
             ref_pos[0] = np.clip(ref_pos[0], -env.x_lim, env.x_lim)
             ref_pos[1] = np.clip(ref_pos[1], -env.y_lim, env.y_lim)
             ref_pos[2] = np.clip(ref_pos[2], 0.5, env.z_lim)
-
-            # Print goals for all quads
-            # print("Target X: {0:.4}, Y: {0:.4}, Z: {2:.4}".format(
-            #     ref_pos[0], ref_pos[1], ref_pos[2]))
 
             agent_obs, reward, done, _ = env.step(ref_pos)
             state, uncertainty_mat = agent_obs
@@ -113,5 +111,5 @@ def main(episodes):
 
 
 if __name__ == "__main__":
-    episodes = 10000  # Determining number of episodes
+    episodes = 5000  # Determining number of episodes
     main(episodes)  # Calling main function

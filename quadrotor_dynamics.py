@@ -43,7 +43,11 @@ class Quadrotor:
     def __init__(self, state0, coeff_pos=1.0, coeff_angle = 0.25, coeff_control = 0.0, coeff_final_pos=0.0):
         
         self.state = state0
+        # self.state2 = state0
+        # self.state3 = state0
         self.U = [1, 0., 0., 0.]
+        # self.U2 = [1, 0., 0., 0.]
+        # self.U3 = [1, 0., 0., 0.]
         self.costValue = 0.
         self.coeff_pos = coeff_pos
         self.coeff_angle = coeff_angle
@@ -67,34 +71,39 @@ class Quadrotor:
         return g, m, Ixx, Iyy, Izz, I1, I2, I3, Jr, l, b, d
 
 
-    def model_dynamics(self, t, state):
+    def model_dynamics_2(self, t, state):
         g, m, Ixx, Iyy, Izz, I1, I2, I3, Jr, l, b, d = self.model_parameters()
         #states: [x,y,z,phi,theta,psi,x_dot,y_dot,z_dot,phi_dot,theta_dot,psi_dot]
 
         x,y,z,phi,theta,psi,x_dot,y_dot,z_dot,phi_dot,theta_dot,psi_dot = state
         U1, U2, U3, U4 = self.U
 
-        # if (d*U1 - 2*d*U3 - b*U4) < 0:
-        #     omega1 = - np.sqrt(- d*U1 + 2*d*U3 + b*U4) / (2*np.sqrt(b*d))
-        # else:
-        #     omega1 = - np.sqrt(d*U1 - 2*d*U3 - b*U4) / (2*np.sqrt(b*d))
+        omega = 0.
 
-        # if (d*U1 - 2*d*U2 + b*U4) < 0:
-        #     omega2 = -np.sqrt(-d*U1 + 2*d*U2 - b*U4) / (2*np.sqrt(b*d))
-        # else:
-        #     omega2 = -np.sqrt(d*U1 - 2*d*U2 + b*U4) / (2*np.sqrt(b*d))
+        state_dot = np.zeros(12)
+        state_dot[0] = x_dot
+        state_dot[1] = y_dot
+        state_dot[2] = z_dot
+        state_dot[3] = phi_dot
+        state_dot[4] = theta_dot
+        state_dot[5] = psi_dot
+
+        state_dot[6] = (cos(phi)*sin(theta)*cos(psi) + sin(phi)*sin(psi))*U1/m
+        state_dot[7] = (cos(phi)*sin(theta)*sin(psi) - sin(phi)*cos(psi))*U1/m
+        state_dot[8] = -g + cos(phi)*cos(theta)*U1/m    
+        state_dot[9] = theta_dot*psi_dot*I1 - Jr / Ixx * theta_dot * omega  + l/Ixx*U2
+        state_dot[10] = phi_dot*psi_dot*I2 + Jr / Iyy * phi_dot * omega + l/Iyy*U3
+        state_dot[11] = phi_dot*theta_dot*I3 + 1/Izz*U4
+
+        return state_dot
 
 
-        # if (d*U1 + 2*d*U3 - b*U4) < 0:
-        #     omega3 = -np.sqrt(-d*U1 - 2*d*U3 + b*U4) / (2*np.sqrt(b*d))
-        # else:
-        #     omega3 = -np.sqrt(d*U1 + 2*d*U3 - b*U4) / (2*np.sqrt(b*d))
+    def model_dynamics(self, state, U):
+        g, m, Ixx, Iyy, Izz, I1, I2, I3, Jr, l, b, d = self.model_parameters()
+        #states: [x,y,z,phi,theta,psi,x_dot,y_dot,z_dot,phi_dot,theta_dot,psi_dot]
 
-        # if (d*U1 + 2*d*U2 + b*U4) < 0:
-        #     omega4 = -np.sqrt(-d*U1 - 2*d*U2 - b*U4) / (2*np.sqrt(b*d))
-        # else:
-        #     omega4 = -np.sqrt(d*U1 + 2*d*U2 + b*U4) / (2*np.sqrt(b*d))
-
+        x,y,z,phi,theta,psi,x_dot,y_dot,z_dot,phi_dot,theta_dot,psi_dot = state
+        U1, U2, U3, U4 = U
 
         omega = 0.
 
@@ -118,16 +127,16 @@ class Quadrotor:
 
     
 
-    def backstepping(self, A1, A2, A3, A4, A5, A6, U_list, ref_traj):
+    def backstepping(self, A1, A2, A3, A4, A5, A6, state, U_list, ref_traj):
         g, m, Ixx, Iyy, Izz, I1, I2, I3, Jr, l, b, d = self.model_parameters()
 
         U1, U2, U3, U4 = U_list
 
         #self.state: [x,y,z,phi,theta,psi,x_dot,y_dot,z_dot,phi_dot,theta_dot,psi_dot]
-        x, y, z = self.state[0], self.state[1], self.state[2]
-        phi, theta, psi = self.state[3], self.state[4], self.state[5]
-        x_dot, y_dot, z_dot = self.state[6], self.state[7], self.state[8]
-        phi_dot, theta_dot, psi_dot = self.state[9], self.state[10], self.state[11]
+        x, y, z = state[0], state[1], state[2]
+        phi, theta, psi = state[3], state[4], state[5]
+        x_dot, y_dot, z_dot = state[6], state[7], state[8]
+        phi_dot, theta_dot, psi_dot = state[9], state[10], state[11]
 
     #     ref_traj = [xd[i], yd[i], zd[i], xd_dot[i], yd_dot[i], zd_dot[i], 
     #                 xd_ddot[i], yd_ddot[i], zd_ddot[i], xd_dddot[i], yd_dddot[i],
@@ -216,47 +225,37 @@ class Quadrotor:
 
         return U
 
-    def get_control_input(self, cont, current_traj):
-        U0 = self.U 
+    def get_control_input(self, state, U0, cont, current_traj):
         if (cont == self.Controllers[0]): #Backstepping_1
             A1, A2, A3 = 15*diag([1,1]), 10*diag([1,1]), 15*diag([1,1]) 
             A4, A5, A6 = 10*diag([1,1]), 15*diag([1,1]), 10*diag([1,1]) 
-            U = self.backstepping(A1, A2, A3, A4, A5, A6, U0, current_traj) 
+            U = self.backstepping(A1, A2, A3, A4, A5, A6, state, U0, current_traj) 
         elif (cont == self.Controllers[1]): #Backstepping_2
             A1, A2, A3 = 10*diag([1,1]), 5*diag([1,1]), 10*diag([1,1]) 
             A4, A5, A6 = 5*diag([1,1]), 10*diag([1,1]), 5*diag([1,1])
-            U = self.backstepping(A1, A2, A3, A4, A5, A6, U0, current_traj) 
+            U = self.backstepping(A1, A2, A3, A4, A5, A6, state, U0, current_traj) 
         elif (cont == self.Controllers[2]): #Backstepping_3
             A1, A2, A3 = 5*diag([1,1]), 3*diag([1,1]), 10*diag([1,1]) 
             A4, A5, A6 = 7*diag([1,1]), 1*diag([1,1]), 1*diag([1,1])  
-            U = self.backstepping(A1, A2, A3, A4, A5, A6, U0, current_traj)
+            U = self.backstepping(A1, A2, A3, A4, A5, A6, state, U0, current_traj)
         elif (cont == self.Controllers[3]): #Backstepping_4
             A1, A2, A3 = 2*diag([1,1]), 5*diag([1,1]), 2*diag([1,1]) 
             A4, A5, A6 = 5*diag([1,1]), 2*diag([1,1]), 5*diag([1,1]) 
-            U = self.backstepping(A1, A2, A3, A4, A5, A6, U0, current_traj)
+            U = self.backstepping(A1, A2, A3, A4, A5, A6, state, U0, current_traj)
         return U
 
+    def euler(self, state, U):
+        state_dot = self.model_dynamics(state, U)
+        return state_dot
+    
+    def runge_kutta(self, state, U, dtau):
+        k1 = self.euler(state, U)
+        k2 = self.euler(state + k1/2., U + dtau/2.)
+        k3 = self.euler(state + k2/2., U + dtau/2.)
+        k4 = self.euler(state + k3, U + dtau)
 
-    def calculate_cost(self, target, final_target=None, final_calculation = False):
-        xd, yd, zd, psid = target
-        
-
-        position_tracking_error = (xd-self.state[0])**2 + (yd-self.state[1])**2 + (zd-self.state[2])**2
-        angular_error = (np.abs(psid-self.state[5])-np.pi/2)**2 #in perfect conditions, difference between yaw angles of gate and drone should be pi/2
-        cont_input = self.U[0]**2 + self.U[1]**2 + self.U[2]**2 + self.U[3]**2
-        
-        if final_calculation:
-            self.costValue += (self.coeff_pos*position_tracking_error + 
-                            self.coeff_angle*angular_error + self.coeff_control*cont_input)
-        else:
-            xf, yf, zf = final_target
-            pos_final_error = (xf-self.state[0])**2 + (yf-self.state[1])**2 + (zf-self.state[2])**2
-            self.costValue += (self.coeff_pos*position_tracking_error + 
-                            self.coeff_angle*angular_error + 
-                            self.coeff_control*cont_input +
-                            self.coeff_final_pos*pos_final_error)
-                        
-
+        state_dot = (k1 + 2*k2 + 2*k3 + k4) / 6.
+        return state_dot 
 
 
     def simulate(self, current_traj, dtau=1e-3, method="Backstepping_3"):
@@ -264,7 +263,7 @@ class Quadrotor:
         std_list = [0, 0, 0, 0]
         r_std, phi_std, theta_std, psi_std = std_list[0], std_list[1], std_list[2], std_list[3]
         fail_check = False
-
+       
         ## Add noise, if you wish ##
         self.state[6] = normal(self.state[6], 0*r_std / 3.0)
         self.state[7] = normal(self.state[7], 0*r_std / 3.0)
@@ -273,17 +272,34 @@ class Quadrotor:
         self.state[10] = normal(self.state[10], 0*theta_std)
         self.state[11] = normal(self.state[11], 0*psi_std)
 
-        U = self.get_control_input(method, current_traj)
+        # Scipy diff solver
+        # U = self.get_control_input(self.state, self.U, method, current_traj)
+        # self.U = U
 
-        sol = integrate.solve_ivp(fun=self.model_dynamics, t_span=(0, dtau), y0=self.state)
-        self.state = sol.y[:,-1]
-        self.U = U
+        # sol = integrate.solve_ivp(fun=self.model_dynamics_2, t_span=(0, dtau), y0=self.state)
+        # self.state = sol.y[:,-1]
+
+        # Euler Solver
+        self.U = self.get_control_input(self.state, self.U, method, current_traj)
+
+        state_dot = self.euler(self.state, self.U)
+        self.state = self.state + state_dot * dtau
+
+        # Runge-Kutta Solver
+        # U3 = self.get_control_input(self.state3, self.U3, method, current_traj)
+        # self.U3 = U3
+
+        # state_dot = self.runge_kutta(self.state3, self.U3, dtau)
+        # self.state3 = self.state3 + state_dot * dtau
+        
+        # diff12 = np.sum((self.state - self.state2)**2)
+        # diff13 = np.sum((self.state - self.state3)**2)
+        # diff23 = np.sum((self.state2 - self.state3)**2)
+        # diff = np.array([diff12, diff13, diff23])
 
         if (np.abs(self.state[3]) > np.pi/2)  | (np.abs(self.state[4]) > np.pi/2):
             self.costValue = 1e12
             fail_check = True
-        else:
-            target = [current_traj[0], current_traj[1], current_traj[2], current_traj[13]]
 
         
         return fail_check

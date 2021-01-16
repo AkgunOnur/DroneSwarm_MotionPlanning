@@ -39,6 +39,11 @@ def select_action(state, uncertainty, policy):
     eps = torch.randn(mu.size())
     action = (mu + sigma.sqrt() * Variable(eps)).data
 
+    # print ("mu: ", mu)
+    # print ("sigma: ", sigma)
+    # print ("eps: ", eps)
+    # print ("action in select_action: ", action)
+
     prob = normal(action, mu, sigma)
 
     prob2 = torch.prod(prob.reshape(-1))

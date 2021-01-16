@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt
 from policy import Net
 from make_g import build_graph
 from utils import *
+from quadrotor_formation import QuadrotorFormation
 
 import os 
 import datetime 
@@ -30,51 +31,51 @@ warnings.filterwarnings("ignore")
 
 policy = Net()
 optimizer = optim.Adam(policy.parameters(), lr=1e-3)
-env = gym.make('FormationFlying-v3')
-filename = './logs/3agents.pt'
+env = QuadrotorFormation(visualization=True)
+filename = './models/single_agent.pt'
 policy.load_state_dict(torch.load(filename))
 
 #pdb.set_trace()
 
 def main():
 	test_episodes = 5
-	running_reward = 10
 	plotting_rew = []
 	
 	for episode in range(test_episodes):
 		reward_over_eps = []
-		state = env.reset() # Reset environment and record the starting state
-		g = build_graph(env)
+		pos_target = np.array([[0., 0., 0.]])
+		agent_obs = env.reset()  # Reset environment and record the starting state
+		#g = build_graph(env)  # build graph
 		done = False
 
+		state, uncertainty_mat = agent_obs
 		for time in range(200):
-
-			#if episode%50==0:
-			env.render()
 			#g = build_graph(env)
-			action = select_action(state,g,policy)
+			action = select_action(state, uncertainty_mat,  policy)
 
 			action = action.numpy()
-			action = np.reshape(action,[-1])
-
+			#print ("\n action_0: ", action)
+			print ("\n Episode: {0}, Iteration: {1}".format(episode+1, time+1))
+			print("Action X: {0:.4}, Y: {1:.4}, Z: {2:.4}".format(
+				action[0][0], action[0][1], action[0][2]))
+			pos_target = pos_target + action
+			ref_pos = np.reshape(pos_target, [-1])
 			# Step through environment using chosen action
-			action = np.clip(action,-env.max_accel,env.max_accel)
+			ref_pos[0] = np.clip(ref_pos[0], -env.x_lim, env.x_lim)
+			ref_pos[1] = np.clip(ref_pos[1], -env.y_lim, env.y_lim)
+			ref_pos[2] = np.clip(ref_pos[2], 0.5, env.z_lim)
 
-			state, reward, done, _ = env.step(action)
-
+			agent_obs, reward, done, _ = env.step(ref_pos)
+			state, uncertainty_mat = agent_obs
 			reward_over_eps.append(reward)
 			# Save reward
 			policy.reward_episode.append(reward)
 			if done:
 				break
 
-		# Used to determine when the environment is solved.
-		running_reward = (running_reward * 0.99) + (time * 0.01)
-
-
-		if episode % 50 == 0:
-			print('Episode {}\tLast length: {:5d}\tAverage test reward: {:.2f}\tAverage reward over episode: {:.2f}'.format(episode, time, running_reward, np.mean(reward_over_eps)))
-
+		mean_reward = np.mean(reward_over_eps)
+		print('Episode {}\tLast length: {:5d}\tAverage reward over episode: {:.2f}'.format(
+                episode, time, mean_reward))
 		
 
 		plotting_rew.append(np.mean(reward_over_eps))
