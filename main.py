@@ -35,11 +35,6 @@ env = QuadrotorFormation(visualization=True)
 if not os.path.exists('./models'):
     os.makedirs('./models')
 
-# Determine file name and save model parameters
-filename = "single_agent.pt"
-torch.save(policy.state_dict(), './models/%s' % filename)
-
-
 ### main function ###
 def main(episodes):
     plotting_rew = []
@@ -69,7 +64,7 @@ def main(episodes):
             # Step through environment using chosen action
             ref_pos[0] = np.clip(ref_pos[0], -env.x_lim, env.x_lim)
             ref_pos[1] = np.clip(ref_pos[1], -env.y_lim, env.y_lim)
-            ref_pos[2] = np.clip(ref_pos[2], 0.5, env.z_lim)            
+            ref_pos[2] = np.clip(ref_pos[2], 0.5, env.z_lim)      
 
             agent_obs, reward, done, _ = env.step(ref_pos)
             state, uncertainty_mat = agent_obs
@@ -81,7 +76,7 @@ def main(episodes):
 
         # Used to determine when the environment is solved.
         mean_reward = np.mean(reward_over_eps)
-        if(episode >= 3):
+        if(episode >= 2):
             update_policy(policy, optimizer)
 
         if episode % 1 == 0:
@@ -91,6 +86,10 @@ def main(episodes):
         # Save policy for every 5000 episodes
         if mean_reward > mean_reward_pr:
             mean_reward_pr = mean_reward
+            filename = "single_agent_reward.pt"
+            torch.save(policy.state_dict(), './models/%s' % filename)
+        elif episode % 100 == 0:
+            filename = "single_agent_episode_" + str(episode) + ".pt"
             torch.save(policy.state_dict(), './models/%s' % filename)
 
         plotting_rew.append(np.mean(reward_over_eps))
