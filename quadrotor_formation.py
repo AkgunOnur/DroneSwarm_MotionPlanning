@@ -81,7 +81,7 @@ class QuadrotorFormation(gym.Env):
 
         self.a_net = np.zeros((self.n_agents, self.n_agents))
 
-        self.max_action = 50.0
+        self.max_action = 20.0
         self.gain = 1.0  # TODO - adjust if necessary - may help the NN performance
         self.action_space = spaces.Box(low=-self.max_action, high=self.max_action, shape=(
             self.n_action * self.n_agents,), dtype=np.float32)
@@ -95,6 +95,7 @@ class QuadrotorFormation(gym.Env):
         self.z_lim = 15  # grid z limit
         self.res = 1.0  # resolution for grids
         self.out_shape = 164  # width and height for uncertainty matrix
+        self.dist = 5.0 # distance threshold
 
         X, Y, Z = np.mgrid[-self.x_lim:self.x_lim + 0.1:self.res, -
                            self.y_lim:self.y_lim + 0.1:self.res, 0:self.z_lim + 0.1:self.res]
@@ -197,15 +198,22 @@ class QuadrotorFormation(gym.Env):
                         self.visualize()
                     differences = current_pos - self.uncertainty_grids
                     distances = np.sum(differences * differences, axis=1)
-                    min_ind = np.argmin(distances)
-                    if self.uncertainty_values[min_ind] < 0.1:
-                        neg_reward = np.clip(np.exp(self.grid_visits[min_ind] / 4), 0, 1e3)
-                        reward -= neg_reward
-                    else:
-                        reward += 100.0*self.uncertainty_values[min_ind]
-                    self.grid_visits[min_ind] += 1
-                    self.uncertainty_values[min_ind] = np.clip(
-                        np.exp(-self.grid_visits[min_ind]), 1e-6, 1.0)
+                    indices = distances < self.dist
+                    reward += 100.0*np.sum(self.uncertainty_values[indices])
+                    # out_of_map = 100*(np.clip(current_pos[0]-self.x_lim, 0, 1e3) + 
+                    #                   np.clip(current_pos[1]-self.y_lim, 0, 1e3) + 
+                    #                   np.clip(current_pos[2]-self.z_lim, 0, 1e3))
+
+                    # reward -= out_of_map
+                    # min_ind = np.argmin(distances)
+                    # if self.uncertainty_values[min_ind] < 0.1:
+                    #     neg_reward = np.clip(np.exp(self.grid_visits[min_ind] / 4), 0, 1e3)
+                    #     reward -= neg_reward
+                    # else:
+                    #     reward += 100.0*self.uncertainty_values[min_ind]
+                    self.grid_visits[indices] += 1
+                    self.uncertainty_values[indices] = np.clip(
+                        np.exp(-self.grid_visits[indices]), 1e-6, 1.0)
 
                     # print ("current_pos: ", current_pos)
                     # print ("closest grid: ", self.uncertainty_grids[min_ind])
