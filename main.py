@@ -51,7 +51,7 @@ def main(episodes):
         done = False
         # Episode loop
         state, uncertainty_mat = agent_obs
-        for time in range(200):
+        for time in range(10):
             #g = build_graph(env)
             #print("state: ", state)
             action = select_action(state, uncertainty_mat,  policy)

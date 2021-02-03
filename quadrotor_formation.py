@@ -23,7 +23,7 @@ font = {'family': 'sans-serif',
 
 class QuadrotorFormation(gym.Env):
 
-    def __init__(self, visualization = True):
+    def __init__(self, visualization=True):
 
         config_file = path.join(path.dirname(__file__), "formation_flying.cfg")
         config = configparser.ConfigParser()
@@ -95,7 +95,7 @@ class QuadrotorFormation(gym.Env):
         self.z_lim = 15  # grid z limit
         self.res = 1.0  # resolution for grids
         self.out_shape = 164  # width and height for uncertainty matrix
-        self.dist = 5.0 # distance threshold
+        self.dist = 5.0  # distance threshold
 
         X, Y, Z = np.mgrid[-self.x_lim:self.x_lim + 0.1:self.res, -
                            self.y_lim:self.y_lim + 0.1:self.res, 0:self.z_lim + 0.1:self.res]
@@ -117,7 +117,8 @@ class QuadrotorFormation(gym.Env):
 
     def step(self, ref_pos):
         #self.nu = 1
-        self.agent_targets = np.reshape(ref_pos, (self.n_agents, self.n_action))
+        self.agent_targets = np.reshape(
+            ref_pos, (self.n_agents, self.n_action))
         self.fail_check = np.zeros(self.n_agents)
         eps = 0.25
         done = False
@@ -149,7 +150,7 @@ class QuadrotorFormation(gym.Env):
             t_list = np.linspace(0, flight_period, num=int(Waypoint_length))
 
             print("Initial X:{0:.3}, Y:{1:.3}, Z:{2:.3} of Agent {3}".format(
-                pos0[0], pos0[1], pos0[2], i+1))
+                pos0[0], pos0[1], pos0[2], i + 1))
             print("Target X:{0:.3}, Y:{1:.3}, Z:{2:.3} in {3:.3} s. ".format(
                 xd, yd, zd, newTraj.t_wps[1]))
 
@@ -199,9 +200,9 @@ class QuadrotorFormation(gym.Env):
                     differences = current_pos - self.uncertainty_grids
                     distances = np.sum(differences * differences, axis=1)
                     indices = distances < self.dist
-                    reward += 100.0*np.sum(self.uncertainty_values[indices])
-                    # out_of_map = 100*(np.clip(current_pos[0]-self.x_lim, 0, 1e3) + 
-                    #                   np.clip(current_pos[1]-self.y_lim, 0, 1e3) + 
+                    reward += 100.0 * np.sum(self.uncertainty_values[indices])
+                    # out_of_map = 100*(np.clip(current_pos[0]-self.x_lim, 0, 1e3) +
+                    #                   np.clip(current_pos[1]-self.y_lim, 0, 1e3) +
                     #                   np.clip(current_pos[2]-self.z_lim, 0, 1e3))
 
                     # reward -= out_of_map
@@ -213,12 +214,13 @@ class QuadrotorFormation(gym.Env):
                     #     reward += 100.0*self.uncertainty_values[min_ind]
                     self.grid_visits[indices] += 1
                     self.uncertainty_values[indices] = np.clip(
-                        np.exp(-self.grid_visits[indices]), 1e-6, 1.0)
+                        np.exp(-self.grid_visits[indices]), 1e-1, 1.0)  # Made changes here was 1e-6
 
                     # print ("current_pos: ", current_pos)
                     # print ("closest grid: ", self.uncertainty_grids[min_ind])
 
-            self.diff_target[i][:] = self.quadrotors[i].state[0:3] - self.agent_targets[i][:]
+            self.diff_target[i][:] = self.quadrotors[i].state[0:3] - \
+                self.agent_targets[i][:]
 
             print("Final  X:{0:.3}, Y:{1:.3}, Z:{2:.3}, Reward:{3:.5} for agent {4}: ".format(
                 self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2], reward, i))
@@ -234,12 +236,18 @@ class QuadrotorFormation(gym.Env):
     def _get_obs(self):
 
         for i in range(self.n_agents):
-            self.agent_features[i, 0] = self.quadrotors[i].state[0] - \
-                0 * self.agent_pos_goal[i, 0]
-            self.agent_features[i, 1] = self.quadrotors[i].state[1] - \
-                0 * self.agent_pos_goal[i, 1]
-            self.agent_features[i, 2] = self.quadrotors[i].state[2] - \
-                0 * self.agent_pos_goal[i, 2]
+            self.agent_features[i,
+                                0] = self.quadrotors[i].state[0] / self.x_lim
+            self.agent_features[i,
+                                1] = self.quadrotors[i].state[1] / self.y_lim
+            self.agent_features[i,
+                                2] = self.quadrotors[i].state[2] / self.z_lim
+            # self.agent_features[i, 0] = self.quadrotors[i].state[0] - \
+            #     0 * self.agent_pos_goal[i, 0]
+            # self.agent_features[i, 1] = self.quadrotors[i].state[1] - \
+            #     0 * self.agent_pos_goal[i, 1]
+            # self.agent_features[i, 2] = self.quadrotors[i].state[2] - \
+            #     0 * self.agent_pos_goal[i, 2]
 
         uncertainty_mat = np.reshape(
             self.uncertainty_values, (1, 1, self.out_shape, self.out_shape))
@@ -361,7 +369,8 @@ class QuadrotorFormation(gym.Env):
     def visualize(self, mode='human'):
         if self.viewer is None:
             self.viewer = rendering.Viewer(500, 500)
-            self.viewer.set_bounds(-self.x_lim, self.x_lim, -self.y_lim, self.y_lim)
+            self.viewer.set_bounds(-self.x_lim,
+                                   self.x_lim, -self.y_lim, self.y_lim)
 
             self.drone_transform = rendering.Transform()
             fname = path.join(path.dirname(__file__), "assets/drone.png")
@@ -369,11 +378,11 @@ class QuadrotorFormation(gym.Env):
             self.drone.add_attr(self.drone_transform)
 
         self.viewer.add_onetime(self.drone)
-        self.drone_transform.set_translation(self.quadrotors[0].state[0], self.quadrotors[0].state[1])
+        self.drone_transform.set_translation(
+            self.quadrotors[0].state[0], self.quadrotors[0].state[1])
         self.drone_transform.set_rotation(self.quadrotors[0].state[5])
 
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')
-
 
     def render(self, mode='human'):
         """

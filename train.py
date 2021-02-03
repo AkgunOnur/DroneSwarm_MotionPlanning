@@ -3,7 +3,7 @@ import numpy as np
 import os
 import torch
 import gym
-import pybullet_envs
+# import pybullet_envs
 from gym import wrappers
 #######################
 ### Import Libraries ###
@@ -79,7 +79,7 @@ def main(episodes):
     start_timesteps = 10_000
     eval_freq = 5_000
     max_timesteps = 500_000
-    batch_size = 200
+    batch_size = 256
     max_episode_steps = 200  # env._max_episode_steps
 
     total_timesteps = 0
@@ -109,15 +109,18 @@ def main(episodes):
         pos_target = np.array([[0., 0., 0.]])
         reward_over_eps = []
         agent_obs = env.reset()
-        state, uncertainty_mat = agent_obs
         episode_timesteps = 0
         for time in range(200):
             # if total_timesteps < start_timesteps:
             #     action = env.action_space.sample()
             # else:
-            concat_state = np.concatenate(
-                (state.reshape(-1, 1), uncertainty_mat.reshape(-1, 1)), axis=0)
-            action = policy.get_action(agent_obs)
+            drone_state, uncertainty_mat = agent_obs
+            action = policy.get_action(drone_state, uncertainty_mat)
+
+            if(math.isnan(action.any())):
+                action = policy.get_action(drone_state, uncertainty_mat)
+                print("action was Nan, I fixed it")
+                print("new action: ", action)
 
             #action = action.numpy()
             print("\n Episode: {0}, Iteration: {1}".format(
@@ -132,17 +135,15 @@ def main(episodes):
             ref_pos[1] = np.clip(ref_pos[1], -env.y_lim, env.y_lim)
             ref_pos[2] = np.clip(ref_pos[2], 0.5, env.z_lim)
 
-            agent_newobs, reward, done, _ = env.step(ref_pos)
-            new_state, newuncertainty_mat = agent_newobs
+            agent_new_obs, reward, done, _ = env.step(ref_pos)
             reward_over_eps.append(reward)
 
-            concat_newstate = np.concatenate(
-                (new_state.reshape(-1, 1), uncertainty_mat.reshape(-1, 1)), axis=0)
-            policy.replay_buffer.add(
-                concat_state, action, reward, concat_newstate, done)
+            drone_new_state, new_uncertainty_mat = agent_new_obs
 
-            agent_obs = agent_newobs
-            state = new_state
+            policy.replay_buffer.add(
+                (drone_state, uncertainty_mat), action, reward, (drone_new_state, new_uncertainty_mat), done)
+
+            agent_obs = agent_new_obs
 
             episode_timesteps += 1
             total_timesteps += 1
@@ -152,7 +153,7 @@ def main(episodes):
 
         # Used to determine when the environment is solved.
         mean_reward = np.mean(reward_over_eps)
-        if((episode + 1) % 3 == 0):
+        if((episode + 1) % 5 == 0):
             policy.train(1, batch_size)
 
         if episode % 1 == 0:
@@ -195,5 +196,5 @@ def main(episodes):
 
 
 if __name__ == "__main__":
-    episodes = 5000  # Determining number of episodes
+    episodes = 2500  # Determining number of episodes
     main(episodes)  # Calling main function

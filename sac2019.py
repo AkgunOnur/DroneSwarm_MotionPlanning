@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Normal
-import pybullet_envs
+# import pybullet_envs
 import gym
 import random
 import numpy as np
@@ -29,22 +29,29 @@ class BasicBuffer:
 
     def sample(self, batch_size):
         state_batch = []
+        uncertainty_batch = []
         action_batch = []
         reward_batch = []
         next_state_batch = []
+        next_uncertainty_batch = []
         done_batch = []
 
         batch = random.sample(self.buffer, batch_size)
 
         for experience in batch:
-            state, action, reward, next_state, done = experience
+            state_uncertainty, action, reward, next_state_uncertainty, done = experience
+            state, uncertainty = state_uncertainty
+            next_state, next_uncertainty = next_state_uncertainty
+
             state_batch.append(state)
+            uncertainty_batch.append(uncertainty)
             action_batch.append(action)
             reward_batch.append(reward)
             next_state_batch.append(next_state)
+            next_uncertainty_batch.append(next_uncertainty)
             done_batch.append(done)
 
-        return (state_batch, action_batch, reward_batch, next_state_batch, done_batch)
+        return (state_batch, uncertainty_batch, action_batch, reward_batch, next_state_batch, next_uncertainty_batch, done_batch)
 
     def __len__(self):
         return len(self.buffer)
@@ -92,10 +99,7 @@ class SoftQNetwork(nn.Module):
         self.linear3 = nn.Linear(18, 3)
         self.linear4 = nn.Linear(15, 3)
 
-    def forward(self, state, action, N=200):
-        uncertainty = state[:, 3:].reshape(N, 1, 164, 164)
-        state = state[:, 0:3].reshape(N, 3)
-
+    def forward(self, state, uncertainty, action, N=1):
         out1 = F.relu(self.conv1(uncertainty))
         out2 = F.relu(self.pool(out1))
         out3 = F.relu(self.conv2(out2))
@@ -132,12 +136,12 @@ class PolicyNetwork(nn.Module):
         # self.linear2 = nn.Linear(400, 300)
 
         self.mean_linear = nn.Linear(300, num_actions)
-        self.mean_linear.weight.data.uniform_(-init_w, init_w)
-        self.mean_linear.bias.data.uniform_(-init_w, init_w)
+        # self.mean_linear.weight.data.uniform_(-init_w, init_w)
+        # self.mean_linear.bias.data.uniform_(-init_w, init_w)
 
         self.log_std_linear = nn.Linear(300, num_actions)
-        self.log_std_linear.weight.data.uniform_(-init_w, init_w)
-        self.log_std_linear.bias.data.uniform_(-init_w, init_w)
+        # self.log_std_linear.weight.data.uniform_(-init_w, init_w)
+        # self.log_std_linear.bias.data.uniform_(-init_w, init_w)
 
         self.conv1 = nn.Conv2d(
             in_channels=1, out_channels=1, kernel_size=7, stride=2)
@@ -151,15 +155,15 @@ class PolicyNetwork(nn.Module):
         self.linear3 = nn.Linear(15, 3)
         self.linear4 = nn.Linear(15, 3)
 
-        torch.nn.init.xavier_uniform(self.conv1.weight)
-        torch.nn.init.xavier_uniform(self.conv2.weight)
-        torch.nn.init.xavier_uniform(self.conv3.weight)
-        torch.nn.init.xavier_uniform(self.linear1.weight)
-        torch.nn.init.xavier_uniform(self.linear2.weight)
-        torch.nn.init.xavier_uniform(self.linear3.weight)
-        torch.nn.init.xavier_uniform(self.linear4.weight)
+        # torch.nn.init.xavier_uniform(self.conv1.weight)
+        # torch.nn.init.xavier_uniform(self.conv2.weight)
+        # torch.nn.init.xavier_uniform(self.conv3.weight)
+        # torch.nn.init.xavier_uniform(self.linear1.weight)
+        # torch.nn.init.xavier_uniform(self.linear2.weight)
+        # torch.nn.init.xavier_uniform(self.linear3.weight)
+        # torch.nn.init.xavier_uniform(self.linear4.weight)
 
-    def forward(self, features, uncertainty, N=1):
+    def forward(self, states, uncertainty, N=1):
         out1 = F.relu(self.conv1(uncertainty))
         out2 = F.relu(self.pool(out1))
         out3 = F.relu(self.conv2(out2))
@@ -176,7 +180,10 @@ class PolicyNetwork(nn.Module):
         #print("uncertain_fcn_output: ", uncertain_fcn)
 
         # Fully Connected Layer for Features
-        features_fcn = F.relu(self.linear2(features))
+        features_fcn = F.relu(self.linear2(states))
+        # print ("states: ", states.size())
+        # print ("uncertain_fcn: ", uncertain_fcn.size())
+        # print ("features_fcn: ", features_fcn.size())
 
         # Uncertainty FCN and Features FCN are combined
         x = torch.cat((features_fcn, uncertain_fcn), 1)
@@ -194,22 +201,17 @@ class PolicyNetwork(nn.Module):
     #     log_std = self.log_std_linear(x)
     #     log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
 
-        return mean, log_std
+        # return mean, log_std
 
-    def sample(self, agent_obs, epsilon=1e-6):
-
-        state = agent_obs[:, 0:3].reshape(200, 3)
-        uncertainty_mat = agent_obs[:, 3:].reshape(
-            200, 1, 164, 164)
-        mean, log_std = self.forward(state, uncertainty_mat, N=200)
+    def sample(self, next_states, next_uncertainty, N=1, epsilon=1e-5):
+        mean, log_std = self.forward(next_states, next_uncertainty, N)
         std = log_std.exp()
 
         normal = Normal(mean, std)
         z = normal.rsample()
-        action = 1.5 * torch.tanh(z)
+        action = torch.tanh(z)
 
-        log_pi = normal.log_prob(
-            z) - torch.log(1 - action.pow(2) + epsilon)
+        log_pi = normal.log_prob(z) - torch.log(1 - action.pow(2) + epsilon)
         log_pi = log_pi.sum(1, keepdim=True)
 
         return action, log_pi
@@ -269,13 +271,11 @@ class SACAgent:
 
         self.replay_buffer = BasicBuffer(buffer_maxlen)
 
-    def get_action(self, agent_obs):
-        state, uncertainty_mat = agent_obs
-        state = Variable(torch.FloatTensor(state)).to(self.device)
-        uncertainty = Variable(torch.FloatTensor(
-            uncertainty_mat)).to(self.device)
+    def get_action(self, drone_state, uncertainty):
+        drone_state = Variable(torch.FloatTensor(drone_state)).to(self.device)
+        uncertainty = Variable(torch.FloatTensor(uncertainty)).to(self.device)
         #state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-        mean, log_std = self.policy_net.forward(state, uncertainty)
+        mean, log_std = self.policy_net.forward(drone_state, uncertainty)
         std = log_std.exp()
 
         normal = Normal(mean, std)
@@ -301,27 +301,52 @@ class SACAgent:
 
     def train(self, iterations, batch_size):
         for _ in range(iterations):
-            states, actions, rewards, next_states, dones = self.replay_buffer.sample(
+            states, uncertainties, actions, rewards, next_states, next_uncertainties, dones = self.replay_buffer.sample(
                 batch_size)
+
             states = torch.FloatTensor(states).to(self.device)
+            uncertainties = torch.FloatTensor(uncertainties).to(self.device)
             actions = torch.FloatTensor(actions).to(self.device)
             rewards = torch.FloatTensor(rewards).to(self.device)
             next_states = torch.FloatTensor(next_states).to(self.device)
+            next_uncertainties = torch.FloatTensor(
+                next_uncertainties).to(self.device)
             dones = torch.FloatTensor(dones).to(self.device)
             dones = dones.view(dones.size(0), -1)
 
-            next_actions, next_log_pi = self.policy_net.sample(next_states)
+            states = states.resize_((batch_size, states.size()[-1]))
+            next_states = next_states.resize_(
+                (batch_size, next_states.size()[-1]))
+            uncertainties = uncertainties.resize_(
+                (batch_size, 1, uncertainties.size()[-1], uncertainties.size()[-1]))
+            next_uncertainties = next_uncertainties.resize_(
+                (batch_size, 1, next_uncertainties.size()[-1], next_uncertainties.size()[-1]))
+
+            # print ("states: ", states.size())
+            # print ("uncertainties: ", uncertainties.size())
+            # print ("actions: ", actions.size())
+            # print ("rewards: ", rewards.size())
+            # print ("next_states: ", next_states.size())
+            # print ("rewards: ", rewards.size())
+            # print ("next_states: ", next_states.size())
+            # print ("next_uncertainties: ", next_uncertainties.size())
+            # print ("dones: ", dones.size())
+
+            next_actions, next_log_pi = self.policy_net.sample(
+                next_states, next_uncertainties, N=batch_size)
             next_q1 = self.target_q_net1(
-                next_states, next_actions.to(self.device))
+                next_states, next_uncertainties, next_actions.to(self.device), N=batch_size)
             next_q2 = self.target_q_net2(
-                next_states, next_actions.to(self.device))
+                next_states, next_uncertainties, next_actions.to(self.device), N=batch_size)
             next_q_target = torch.min(
                 next_q1, next_q2) - self.alpha * next_log_pi
             expected_q = rewards + (1 - dones) * self.gamma * next_q_target
 
             # q loss
-            curr_q1 = self.q_net1.forward(states, actions)
-            curr_q2 = self.q_net2.forward(states, actions)
+            curr_q1 = self.q_net1.forward(
+                states, uncertainties, actions, N=batch_size)
+            curr_q2 = self.q_net2.forward(
+                states, uncertainties, actions, N=batch_size)
             q1_loss = F.mse_loss(curr_q1, expected_q.detach())
             q2_loss = F.mse_loss(curr_q2, expected_q.detach())
 
@@ -335,11 +360,14 @@ class SACAgent:
             self.q2_optimizer.step()
 
             # delayed update for policy network and target q networks
-            new_actions, log_pi = self.policy_net.sample(states)
+            new_actions, log_pi = self.policy_net.sample(
+                states, uncertainties, N=batch_size)
             if self.update_step % self.delay_step == 0:
                 min_q = torch.min(
-                    self.q_net1.forward(states, new_actions),
-                    self.q_net2.forward(states, new_actions)
+                    self.q_net1.forward(
+                        states, uncertainties, actions, N=batch_size),
+                    self.q_net2.forward(
+                        states, uncertainties, actions, N=batch_size)
                 )
                 policy_loss = (self.alpha * log_pi - min_q).mean()
 
