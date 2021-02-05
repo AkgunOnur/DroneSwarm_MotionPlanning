@@ -39,48 +39,19 @@ if not os.path.exists("./models"):
     os.makedirs("./models")
 
 
-# def evaluate_policy(policy, eval_episodes=10):
-#     avg_reward = 0.
-#     for _ in range(eval_episodes):
-#         obs = env.reset()
-#         done = False
-#         while not done:
-#             action = policy.get_action(obs)
-#             obs, reward, done, _ = env.step(action)
-#             avg_reward += reward
-#     avg_reward /= eval_episodes
-#     print("\n------------------------------------------")
-#     print(f"SAMPLE: Evaluation Step: {avg_reward}")
-#     print("------------------------------------------\n")
-
-
-# def evaluate_policy_deterministic(policy, eval_episodes=10):
-#     avg_reward = 0.
-#     for _ in range(eval_episodes):
-#         obs = env.reset()
-#         done = False
-#         while not done:
-#             action = policy.get_action_deterministic(obs)
-#             obs, reward, done, _ = env.step(action)
-#             avg_reward += reward
-#     avg_reward /= eval_episodes
-#     print("\n------------------------------------------")
-#     print(f"DETERMINISTIC: Evaluation Step: {avg_reward}")
-#     print("------------------------------------------\n")
-
-
 # env_name = "Walker2DBulletEnv-v0"
 # env = gym.make(env_name)
 def main(episodes):
-    env = QuadrotorFormation(visualization=False)
+    n_agents = 3
+    N_iteration = 200
+    env = QuadrotorFormation(n_agents=n_agents, visualization=False)
     plotting_rew = []
     mean_reward_pr = -np.Inf
 
     start_timesteps = 10_000
     eval_freq = 5_000
     max_timesteps = 500_000
-    batch_size = 100
-    max_episode_steps = 200  # env._max_episode_steps
+    batch_size = 256
 
     total_timesteps = 0
     episode_reward = 0
@@ -101,42 +72,50 @@ def main(episodes):
     np.random.seed(seed)
     # env.seed(seed)
 
-    policy = SAC(env, gamma, tau, alpha, q_lr, p_lr, a_lr, buffer_maxlen)
+    policy_list = []
+
+    for i in range(n_agents):
+        policy = SAC(env, gamma, tau, alpha, q_lr, p_lr, a_lr, buffer_maxlen)
+        policy_list.append(policy)
 
     done = False
 
     for episode in range(episodes):
-        pos_target = np.array([[0., 0., 0.]])
         reward_over_eps = []
-        agent_obs = env.reset()
+        agent_obs, pos_target = env.reset()
         episode_timesteps = 0
-        for time in range(200):
+        for time in range(4):
             # if total_timesteps < start_timesteps:
             #     action = env.action_space.sample()
             # else:
-            drone_state, uncertainty_mat = agent_obs
-            action = policy.get_action(drone_state, uncertainty_mat)
-
-            #action = action.numpy()
             print("\n Episode: {0}, Iteration: {1}".format(
                 episode + 1, time + 1))
-            print("Action X: {0:.4}, Y: {1:.4}, Z: {2:.4}".format(
-                action[0], action[1], action[2]))
 
-            pos_target = pos_target + action
-            ref_pos = np.reshape(pos_target, [-1])
-            # Step through environment using chosen action
-            ref_pos[0] = np.clip(ref_pos[0], -env.x_lim, env.x_lim)
-            ref_pos[1] = np.clip(ref_pos[1], -env.y_lim, env.y_lim)
-            ref_pos[2] = np.clip(ref_pos[2], 0.5, env.z_lim)
+            action_list = []
+            ref_pos = np.zeros((n_agents, 3))
+            drone_state, uncertainty_mat = agent_obs
+            for i in range(n_agents):
+                action = policy_list[i].get_action(drone_state[i,:].reshape(1,-1), uncertainty_mat)
+                action_list.append(action)
+                # print("Agent {3} Action X: {0:.4}, Y: {1:.4}, Z: {2:.4}".format(action[0], action[1], action[2], i+1))
+                    
 
-            agent_new_obs, reward, done, _ = env.step(ref_pos)
-            reward_over_eps.append(reward)
+                pos_target[i,:] = pos_target[i,:] + action
+                # ref_pos = np.reshape(pos_target, [-1])
+                ref_pos[i,0] = np.clip(pos_target[i,0], -env.x_lim, env.x_lim)
+                ref_pos[i,1] = np.clip(pos_target[i,1], -env.y_lim, env.y_lim)
+                ref_pos[i,2] = np.clip(pos_target[i,2], 0.5, env.z_lim)
+
+            agent_new_obs, reward_list, done, _ = env.step(ref_pos)
+            reward_over_eps.append(reward_list)
 
             drone_new_state, new_uncertainty_mat = agent_new_obs
-            
-            policy.replay_buffer.add(
-                (drone_state, uncertainty_mat), action, reward, (drone_new_state, new_uncertainty_mat), done)
+
+            for i in range(n_agents):
+                policy = policy_list[i]
+                for j in range(n_agents):
+                    policy.replay_buffer.add(
+                        (drone_state[j,:].reshape(1,-1), uncertainty_mat), action_list[j], reward_list[j], (drone_new_state[j,:].reshape(1,-1), new_uncertainty_mat), done)
 
             agent_obs = agent_new_obs
 
@@ -148,8 +127,9 @@ def main(episodes):
 
         # Used to determine when the environment is solved.
         mean_reward = np.mean(reward_over_eps)
-        if((episode + 1) % 2 == 0):
-            policy.train(1, batch_size)
+        if((episode + 1) % 5 == 0):
+            for i in range(n_agents):
+                policy_list[i].train(5, batch_size)
 
         if episode % 1 == 0:
             print('Episode {}\tLast length: {:5d}\tAverage reward over episode: {:.2f}'.format(
@@ -158,10 +138,11 @@ def main(episodes):
         # Save policy for every 5000 episodes
         if mean_reward > mean_reward_pr:
             mean_reward_pr = mean_reward
-            policy.save_checkpoint('models/actor', 'models/critic')
+            for i in range(n_agents):
+                policy_list[i].save_checkpoint('models/actor_' + str(i+1), 'models/critic_' + str(i+1))
         elif episode % 100 == 0:
-            policy.save_checkpoint(
-                'models/actor' + str(episode), 'models/critic' + str(episode))
+            for i in range(n_agents):
+                policy_list[i].save_checkpoint('models/actor_' + str(i+1) + "_" + str(episode), 'models/critic_' + str(i+1) + "_" + str(episode))
 
         plotting_rew.append(np.mean(reward_over_eps))
 
@@ -175,21 +156,7 @@ def main(episodes):
                 (env.n_agents))
     plt.show()
 
-    # if total_timesteps >= start_timesteps:
-    #         policy.train(episode_timesteps, batch_size)
-    #     print("Total Timesteps: {} Episode Timesteps {} Episode Num: {} Reward: {}".format(
-    #         total_timesteps, episode_timesteps, episode_num, episode_reward))
-    #     obs = env.reset()
-    #     episode_reward = 0
-    #     episode_timesteps = 0
-    #     episode_num += 1
-
-    # if total_timesteps % eval_freq == 0:
-    #     evaluate_policy(policy)
-    #     evaluate_policy_deterministic(policy)
-    #     policy.save_checkpoint('models/actor', 'models/critic')
-
 
 if __name__ == "__main__":
-    episodes = 5000  # Determining number of episodes
+    episodes = 2500  # Determining number of episodes
     main(episodes)  # Calling main function

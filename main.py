@@ -2,7 +2,7 @@
 import gym
 import gym_flock
 import numpy as np
-import pdb
+# import pdb
 import dgl
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,7 +14,7 @@ import math
 from torch.autograd import Variable
 from torch.distributions import Categorical
 import torch
-import networkx as nx
+# import networkx as nx
 import matplotlib.pyplot as plt
 from policy import Net
 #from linear_policy import Net
