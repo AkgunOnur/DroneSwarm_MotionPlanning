@@ -76,7 +76,7 @@ def main(episodes):
 
     for i in range(n_agents):
         policy = SAC(env, gamma, tau, alpha, q_lr, p_lr, a_lr, buffer_maxlen)
-        policy.policy_net.load_state_dict(torch.load('./models/actor_'+ str(i+1)+ '_200_policy.pt'))
+
         policy_list.append(policy)
 
     done = False
