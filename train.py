@@ -1,20 +1,10 @@
 from sac2019 import SACAgent as SAC
-import numpy as np
-import os
-import torch
 import gym
-# import pybullet_envs
-from gym import wrappers
-#######################
-### Import Libraries ###
-import gym
-#import gym_flock
 import numpy as np
 import pdb
 import dgl
 import torch.nn as nn
 import torch.nn.functional as F
-#from make_g import build_graph
 import torch.optim as optim
 import dgl.function as fn
 import math
@@ -24,9 +14,6 @@ from torch.distributions import Categorical
 import torch
 import networkx as nx
 import matplotlib.pyplot as plt
-#from policy import Net
-#from linear_policy import Net
-#from utils import *
 from quadrotor_formation import QuadrotorFormation
 
 import os
@@ -41,9 +28,14 @@ if not os.path.exists("./models"):
 
 # env_name = "Walker2DBulletEnv-v0"
 # env = gym.make(env_name)
-def main(episodes):
+def main():
     n_agents = 3
+    N_episodes = 2000
     N_iteration = 200
+    train_episode_modulo = 5
+    batch_size = 256
+    
+
     env = QuadrotorFormation(n_agents=n_agents, visualization=False)
     plotting_rew = []
     mean_reward_pr = -np.Inf
@@ -51,7 +43,6 @@ def main(episodes):
     start_timesteps = 10_000
     eval_freq = 5_000
     max_timesteps = 500_000
-    batch_size = 256
 
     total_timesteps = 0
     episode_reward = 0
@@ -75,13 +66,12 @@ def main(episodes):
     policy_list = []
 
     for i in range(n_agents):
-        policy = SAC(env, gamma, tau, alpha, q_lr, p_lr, a_lr, buffer_maxlen)
-        policy.policy_net.load_state_dict(torch.load('./models/actor_'+ str(i+1)+ '_200_policy.pt'))
+        policy = SAC(env, gamma, tau, alpha, q_lr, p_lr, a_lr, buffer_maxlen, n_agents)
         policy_list.append(policy)
 
     done = False
 
-    for episode in range(episodes):
+    for episode in range(N_episodes):
         reward_over_eps = []
         agent_obs, pos_target = env.reset()
         episode_timesteps = 0
@@ -89,8 +79,8 @@ def main(episodes):
             # if total_timesteps < start_timesteps:
             #     action = env.action_space.sample()
             # else:
-            print("\n Episode: {0}, Iteration: {1}".format(
-                episode + 1, time + 1))
+            print("\n Episode: {0}/{2}, Iteration: {1}/{3}".format(
+                episode + 1, time + 1, N_episodes, N_iteration))
 
             action_list = []
             ref_pos = np.zeros((n_agents, 3))
@@ -98,7 +88,7 @@ def main(episodes):
             for i in range(n_agents):
                 action = policy_list[i].get_action(drone_state[i,:].reshape(1,-1), uncertainty_mat)
                 action_list.append(action)
-                # print("Agent {3} Action X: {0:.4}, Y: {1:.4}, Z: {2:.4}".format(action[0], action[1], action[2], i+1))
+                # print("Action X: {0:.4}, Y: {1:.4}, Z: {2:.4}".format(action[0], action[1], action[2]))
                     
 
                 pos_target[i,:] = pos_target[i,:] + action
@@ -128,7 +118,7 @@ def main(episodes):
 
         # Used to determine when the environment is solved.
         mean_reward = np.mean(reward_over_eps)
-        if((episode + 1) % 5 == 0):
+        if((episode + 1) % train_episode_modulo == 0):
             for i in range(n_agents):
                 policy_list[i].train(5, batch_size)
 
@@ -159,5 +149,4 @@ def main(episodes):
 
 
 if __name__ == "__main__":
-    episodes = 2500  # Determining number of episodes
-    main(episodes)  # Calling main function
+    main()  # Calling main function

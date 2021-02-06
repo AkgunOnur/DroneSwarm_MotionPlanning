@@ -29,7 +29,7 @@ warnings.filterwarnings("ignore")
 # Define Policy, optimizer and environment
 policy = Net()
 optimizer = optim.Adam(policy.parameters(), lr=1e-3)
-env = QuadrotorFormation(visualization=False)
+env = QuadrotorFormation(visualization=True)
 
 # generate model folder if not exists
 if not os.path.exists('./models'):

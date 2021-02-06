@@ -30,6 +30,7 @@ import datetime
 import warnings
 warnings.filterwarnings("ignore")
 
+n_agents = 1
 gamma = 0.99
 tau = 0.005
 alpha = 0.2
@@ -38,8 +39,8 @@ q_lr = 1e-3
 p_lr = 1e-3
 buffer_maxlen = 1_000_000
 
-env = QuadrotorFormation(visualization=True)
-filename = './models/actor500_policy.pt'
+env = QuadrotorFormation(n_agents = n_agents, visualization=True)
+filename = './models/actor_3_200_policy.pt'
 policy = SAC(env, gamma, tau, alpha, q_lr, p_lr, a_lr, buffer_maxlen)
 # policy.load_state_dict(torch.load(filename))
 

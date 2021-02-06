@@ -78,7 +78,7 @@ class ValueNetwork(nn.Module):
 
 class SoftQNetwork(nn.Module):
 
-    def __init__(self, num_inputs, num_actions, hidden_size=256, init_w=3e-3):
+    def __init__(self, num_inputs, num_actions, n_agents, hidden_size=256, init_w=3e-3):
         super(SoftQNetwork, self).__init__()
         # self.linear1 = nn.Linear(num_inputs + num_actions, 400)
         # self.linear2 = nn.Linear(400, 300)
@@ -95,9 +95,9 @@ class SoftQNetwork(nn.Module):
             in_channels=1, out_channels=1, kernel_size=7, stride=2)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.linear1 = nn.Linear(64, 12)
-        self.linear2 = nn.Linear(3, 3)
-        self.linear3 = nn.Linear(18, 3)
-        self.linear4 = nn.Linear(15, 3)
+        self.linear2 = nn.Linear(3 + (n_agents - 1), 3 + (n_agents - 1))
+        self.linear3 = nn.Linear(18 + (n_agents - 1), 3)
+        self.linear4 = nn.Linear(15 + (n_agents - 1), 3)
 
     def forward(self, state, uncertainty, action, N=1):
         out1 = F.relu(self.conv1(uncertainty))
@@ -127,7 +127,7 @@ class SoftQNetwork(nn.Module):
 
 class PolicyNetwork(nn.Module):
 
-    def __init__(self, num_inputs, num_actions, hidden_size=256, init_w=3e-3, log_std_min=-20, log_std_max=2):
+    def __init__(self, num_inputs, num_actions, n_agents, hidden_size=256, init_w=3e-3, log_std_min=-20, log_std_max=2):
         super(PolicyNetwork, self).__init__()
         self.log_std_min = log_std_min
         self.log_std_max = log_std_max
@@ -151,9 +151,9 @@ class PolicyNetwork(nn.Module):
             in_channels=1, out_channels=1, kernel_size=7, stride=2)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.linear1 = nn.Linear(64, 12)
-        self.linear2 = nn.Linear(3, 3)
-        self.linear3 = nn.Linear(15, 3)
-        self.linear4 = nn.Linear(15, 3)
+        self.linear2 = nn.Linear(3 + (n_agents - 1), 3 + (n_agents - 1))
+        self.linear3 = nn.Linear(15 + (n_agents - 1), 3)
+        self.linear4 = nn.Linear(15 + (n_agents - 1), 3)
 
         # torch.nn.init.xavier_uniform(self.conv1.weight)
         # torch.nn.init.xavier_uniform(self.conv2.weight)
@@ -223,7 +223,7 @@ class PolicyNetwork(nn.Module):
 
 class SACAgent:
 
-    def __init__(self, env, gamma, tau, alpha, q_lr, policy_lr, a_lr, buffer_maxlen):
+    def __init__(self, env, gamma, tau, alpha, q_lr, policy_lr, a_lr, buffer_maxlen, n_agents):
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu")
 
@@ -238,15 +238,15 @@ class SACAgent:
 
         # initialize networks
         self.q_net1 = SoftQNetwork(
-            env.observation_space.shape[0], env.action_space.shape[0]).to(self.device)
+            env.observation_space.shape[0], env.action_space.shape[0], n_agents).to(self.device)
         self.q_net2 = SoftQNetwork(
-            env.observation_space.shape[0], env.action_space.shape[0]).to(self.device)
+            env.observation_space.shape[0], env.action_space.shape[0], n_agents).to(self.device)
         self.target_q_net1 = SoftQNetwork(
-            env.observation_space.shape[0], env.action_space.shape[0]).to(self.device)
+            env.observation_space.shape[0], env.action_space.shape[0], n_agents).to(self.device)
         self.target_q_net2 = SoftQNetwork(
-            env.observation_space.shape[0], env.action_space.shape[0]).to(self.device)
+            env.observation_space.shape[0], env.action_space.shape[0], n_agents).to(self.device)
         self.policy_net = PolicyNetwork(
-            env.observation_space.shape[0], env.action_space.shape[0]).to(self.device)
+            env.observation_space.shape[0], env.action_space.shape[0], n_agents).to(self.device)
 
         # copy params to target param
         for target_param, param in zip(self.target_q_net1.parameters(), self.q_net1.parameters()):
@@ -294,7 +294,7 @@ class SACAgent:
 
     def rescale_action2(self, action):
         # (self.action_range[1] - self.action_range[0]) / 2.0 + (self.action_range[1] + self.action_range[0]) / 2.0
-        return action * 1.5
+        return action * 2.0
 
     def rescale_action(self, action):
         return action * (self.action_range[1] - self.action_range[0]) / 2.0 + (self.action_range[1] + self.action_range[0]) / 2.0
