@@ -42,7 +42,7 @@ class Quadrotor:
     
     def __init__(self, state0, coeff_pos=1.0, coeff_angle = 0.25, coeff_control = 0.0, coeff_final_pos=0.0):
         
-        self.state = state0
+        self.state = np.array(state0)
         # self.state2 = state0
         # self.state3 = state0
         self.U = [1, 0., 0., 0.]

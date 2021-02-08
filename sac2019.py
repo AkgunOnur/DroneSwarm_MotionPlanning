@@ -224,8 +224,7 @@ class PolicyNetwork(nn.Module):
 class SACAgent:
 
     def __init__(self, env, gamma, tau, alpha, q_lr, policy_lr, a_lr, buffer_maxlen, n_agents):
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.env = env
         self.action_range = [env.action_space.low, env.action_space.high]

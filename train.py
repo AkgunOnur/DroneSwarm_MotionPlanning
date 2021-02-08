@@ -14,7 +14,7 @@ from torch.distributions import Categorical
 import torch
 import networkx as nx
 import matplotlib.pyplot as plt
-from quadrotor_formation import QuadrotorFormation
+from quadrotor_formation_3 import QuadrotorFormation
 
 import os
 import datetime
@@ -46,7 +46,6 @@ def main():
 
     total_timesteps = 0
     episode_reward = 0
-    episode_timesteps = 0
     episode_num = 0
     done = False
 
@@ -71,10 +70,9 @@ def main():
 
     done = False
 
-    for episode in range(N_episodes):
+    for episode in range(1, N_episodes+1):
         reward_over_eps = []
         agent_obs, pos_target = env.reset()
-        episode_timesteps = 0
         for time in range(N_iteration):
             # if total_timesteps < start_timesteps:
             #     action = env.action_space.sample()
@@ -97,6 +95,7 @@ def main():
                 ref_pos[i,1] = np.clip(pos_target[i,1], -env.y_lim, env.y_lim)
                 ref_pos[i,2] = np.clip(pos_target[i,2], 0.5, env.z_lim)
 
+
             agent_new_obs, reward_list, done, _ = env.step(ref_pos)
             reward_over_eps.append(reward_list)
 
@@ -109,9 +108,6 @@ def main():
                         (drone_state[j,:].reshape(1,-1), uncertainty_mat), action_list[j], reward_list[j], (drone_new_state[j,:].reshape(1,-1), new_uncertainty_mat), done)
 
             agent_obs = agent_new_obs
-
-            episode_timesteps += 1
-            total_timesteps += 1
 
             if done:
                 break
@@ -127,7 +123,7 @@ def main():
                 episode, time, mean_reward))
 
         # Save policy for every 5000 episodes
-        if mean_reward > mean_reward_pr:
+        if mean_reward > mean_reward_pr and episode > train_episode_modulo:
             mean_reward_pr = mean_reward
             for i in range(n_agents):
                 policy_list[i].save_checkpoint('models/actor_' + str(i+1), 'models/critic_' + str(i+1))
@@ -145,7 +141,7 @@ def main():
     plt.plot(x, plotting_rew)
     plt.savefig('Relative_Goal_Reaching_for_%d_agents_rs_rg.png' %
                 (env.n_agents))
-    plt.show()
+    # plt.show()
 
 
 if __name__ == "__main__":

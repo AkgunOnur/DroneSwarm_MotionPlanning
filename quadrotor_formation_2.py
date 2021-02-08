@@ -76,8 +76,8 @@ class QuadrotorFormation(gym.Env):
         self.period_denum = 1.0
         self.dtau = 1e-3
 
-        self.xdot_d = np.zeros((self.n_agents, 3))
-        self.xdotdot_d = np.zeros((self.n_agents, 3))
+        self.xd_dot, self.yd_dot, self.zd_dot = 0, 0, 0
+        self.xd_dotdot, self.yd_dotdot, self.zd_dotdot = 0, 0, 0
 
         # intitialize state matrices
         self.total_states = np.zeros((self.n_agents, self.nx_system))
@@ -125,6 +125,7 @@ class QuadrotorFormation(gym.Env):
         self.fail_check = np.zeros(self.n_agents)
         max_distance = 5.0
         min_distance = 0.5
+        alpha = 0.1
         done = False
         traj_list = []
         drone_crash = False
@@ -146,66 +147,51 @@ class QuadrotorFormation(gym.Env):
             posf = [xd, yd, zd]
             yaw0 = self.quadrotors[i].state[5]
             yawf = 0.
+            psid = 0.
 
-            time_list = np.hstack((0., 20)).astype(float)
-            waypoint_list = np.vstack((pos0, posf)).astype(float)
-            yaw_list = np.hstack((yaw0, yawf)).astype(float)
+            N_iter = 300
 
-            newTraj = Trajectory(
-                self.trajSelect, self.quadrotors[i].state, time_list, waypoint_list, yaw_list, v_average=self.v_average)
-            Tf = newTraj.t_wps[1]
-            flight_period = Tf / self.period_denum
-            Waypoint_length = flight_period // self.dtau
-            t_list = np.linspace(0, flight_period, num=int(Waypoint_length))
+            xd_list = np.linspace(self.quadrotors[i].state[0], xd, num=N_iter) 
+            yd_list = np.linspace(self.quadrotors[i].state[1], yd, num=N_iter) 
+            zd_list = np.linspace(self.quadrotors[i].state[2], zd, num=N_iter) 
+            psid_list = np.linspace(self.quadrotors[i].state[5], psid, num=N_iter) 
 
-            print("Initial X:{0:.3}, Y:{1:.3}, Z:{2:.3} of Agent {3}".format(
-                pos0[0], pos0[1], pos0[2], i + 1))
-            print("Target X:{0:.3}, Y:{1:.3}, Z:{2:.3} in {3:.3} s.".format(
-                xd, yd, zd, newTraj.t_wps[1]))
+            for k in range(N_iter):
+                xd_dot = xd_list[k] - self.quadrotors[i].state[0]
+                yd_dot = yd_list[k] - self.quadrotors[i].state[1]
+                zd_dot = zd_list[k] - self.quadrotors[i].state[2]
+                self.xd_dot = alpha*xd_dot + (1-alpha)*self.xd_dot
+                self.yd_dot = alpha*yd_dot + (1-alpha)*self.yd_dot
+                self.zd_dot = alpha*zd_dot + (1-alpha)*self.zd_dot
 
-            for ind, t_current in enumerate(t_list):
-                pos_des, vel_des, acc_des, euler_des = newTraj.desiredState(
-                    t_current, self.dtau, self.quadrotors[i].state)
-
-                # self.vel_sum += (self.quad.state[6]**2+self.quad.state[7]**2+self.quad.state[8]**2)
-
-                xd, yd, zd = pos_des[0], pos_des[1], pos_des[2]
-                xd_dot, yd_dot, zd_dot = vel_des[0], vel_des[1], vel_des[2]
-                xd_ddot, yd_ddot, zd_ddot = acc_des[0], acc_des[1], acc_des[2]
-
-                # xd_dddot = (xd_ddot - self.xd_ddot_pr) / self.dtau
-                # yd_dddot = (yd_ddot - self.yd_ddot_pr) / self.dtau
-                # xd_ddddot = (xd_dddot - self.xd_dddot_pr) / self.dtau
-                # yd_ddddot = (yd_dddot - self.yd_dddot_pr) / self.dtau
-
-                psid = euler_des[2]
-
-                # psid_dot = (psid - self.psid_pr) / self.dtau
-                # psid_ddot = (psid_dot - self.psid_dot_pr) / self.dtau
+                xd_dotdot = self.xd_dot - self.quadrotors[i].state[3]
+                yd_dotdot = self.yd_dot - self.quadrotors[i].state[4]
+                zd_dotdot = self.zd_dot - self.quadrotors[i].state[5]
+                self.xd_dotdot = alpha*xd_dotdot + (1-alpha)*self.xd_dotdot
+                self.yd_dotdot = alpha*yd_dotdot + (1-alpha)*self.yd_dotdot
+                self.zd_dotdot = alpha*zd_dotdot + (1-alpha)*self.zd_dotdot
 
                 # current_traj = [xd, yd, zd, xd_dot, yd_dot, zd_dot, xd_ddot, yd_ddot, zd_ddot,
                 #                 xd_dddot, yd_dddot, xd_ddddot, yd_ddddot,
                 #                 psid, psid_dot, psid_ddot]
-
-                current_traj = [xd, yd, zd, xd_dot, yd_dot, zd_dot, xd_ddot, yd_ddot, zd_ddot,
-                                0, 0, 0, 0,
+                current_traj = [xd_list[k], yd_list[k], zd_list[k], self.xd_dot, self.yd_dot, self.zd_dot, 
+                                self.xd_dotdot, self.yd_dotdot, self.zd_dotdot, 0, 0, 0, 0,
                                 psid, 0, 0]
 
                 self.fail_check[i] = self.quadrotors[i].simulate(current_traj)
 
                 if self.fail_check[i]:
-                    drone_crash = True
                     print("Drone {0} has crashed!".format(i))
                     done = True
                     reward_list[i] = -1e4
                     break
 
                 current_pos = [self.quadrotors[i].state[0],
-                               self.quadrotors[i].state[1], self.quadrotors[i].state[2]]
+                                self.quadrotors[i].state[1], self.quadrotors[i].state[2]]
 
                 reward_list[i] -= 0.025
 
-                if ind % 100 == 0:
+                if (k+1) % 100 == 0:
                     if self.visualization:
                         self.visualize()
                     # pos_list.append([self.quadrotors[i].state[0], self.quadrotors[i].state[1],
@@ -241,9 +227,7 @@ class QuadrotorFormation(gym.Env):
                             elif drone_distance <= max_distance:
                                 reward_list[i] -= 100
 
-                    # print ("current_pos: ", current_pos)
-                    # print ("closest grid: ", self.uncertainty_grids[min_ind])
-                    
+
             # agent_pos_dict[i] = pos_list
 
             print("Current X:{0:.3}, Y:{1:.3}, Z:{2:.3}, Reward:{3:.5} \n".format(
