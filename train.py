@@ -30,7 +30,7 @@ if not os.path.exists("./models"):
 # env = gym.make(env_name)
 def main():
     n_agents = 3
-    N_episodes = 2000
+    N_episodes = 5000
     N_iteration = 200
     train_episode_modulo = 5
     batch_size = 256
