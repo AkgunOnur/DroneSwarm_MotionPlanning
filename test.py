@@ -13,6 +13,7 @@ import dgl
 import dgl.function as fn
 import math
 import pdb
+import pickle
 
 from torch.autograd import Variable
 from torch.distributions import Categorical
@@ -23,11 +24,13 @@ import matplotlib.pyplot as plt
 #from policy import Net
 #from make_g import build_graph
 #from utils import *
-from quadrotor_formation_2 import QuadrotorFormation
+from quadrotor_formation import QuadrotorFormation
 
 import os
 import datetime
 import warnings
+from time import sleep
+
 warnings.filterwarnings("ignore")
 
 n_agents = 3
@@ -39,13 +42,13 @@ q_lr = 1e-3
 p_lr = 1e-3
 buffer_maxlen = 1_000_000
 policy_list = []
-N_iteration = 250
+N_iteration = 200
 N_episode = 5
 
 env = QuadrotorFormation(n_agents = n_agents, visualization=True)
 
 for i in range(n_agents):
-    filename = './models_prev/actor_' + str(i+1) + '_200_policy.pt'
+    filename = './models/actor_' + str(i+1) + '_1600_policy.pt'
     policy = SAC(env, gamma, tau, alpha, q_lr, p_lr, a_lr, buffer_maxlen, n_agents)
     policy.policy_net.load_state_dict(torch.load(filename))
     policy_list.append(policy)
@@ -56,11 +59,14 @@ for i in range(n_agents):
 
 def main():
     plotting_rew = []
+    agent_pos_over_episodes = []
 
     for episode in range(N_episode):
         reward_over_eps = []
         agent_obs, pos_target = env.reset()
         episode_timesteps = 0
+        agent_pos_dict = {i:[] for i in range(n_agents)}
+
         for time in range(N_iteration):
             # if total_timesteps < start_timesteps:
             #     action = env.action_space.sample()
@@ -84,7 +90,7 @@ def main():
                 ref_pos[i,1] = np.clip(pos_target[i,1], -env.y_lim, env.y_lim)
                 ref_pos[i,2] = np.clip(pos_target[i,2], 0.5, env.z_lim)
 
-            agent_new_obs, reward_list, done, _ = env.step(ref_pos)
+            agent_new_obs, reward_list, done, agent_pos_dict = env.step(ref_pos, agent_pos_dict)
             reward_over_eps.append(reward_list)
 
             drone_new_state, new_uncertainty_mat = agent_new_obs
@@ -94,6 +100,18 @@ def main():
             if done:
                 break
 
+        agent_pos_over_episodes.append(agent_pos_dict)
+        if env.visualization:
+            N_max = np.max([len(agent_pos_dict[i]) for i in agent_pos_dict.keys()])
+            for j in range(N_max):
+                pos_list = []
+                for i in range(n_agents):
+                    index = np.clip(j, 0, len(agent_pos_dict[i])-1)
+                    pos_list.append(agent_pos_dict[i][index])
+                env.visualize(pos_list)
+                sleep(0.01)
+
+
         # Used to determine when the environment is solved.
         mean_reward = np.mean(reward_over_eps)
 
@@ -101,6 +119,10 @@ def main():
             episode, time, mean_reward))
 
         plotting_rew.append(np.mean(reward_over_eps))
+
+        if episode % 1 == 0:
+            with open('models/agents_positions.pkl', 'wb') as f:
+                pickle.dump(agent_pos_over_episodes, f)
 
     np.savetxt('Test_Relative_Goal_Reaching_for_%d_agents_rs_rg.txt' %
                (env.n_agents), plotting_rew)

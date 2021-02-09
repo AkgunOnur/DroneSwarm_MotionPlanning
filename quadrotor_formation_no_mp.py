@@ -81,7 +81,7 @@ class QuadrotorFormation(gym.Env):
 
         # intitialize state matrices
         self.total_states = np.zeros((self.n_agents, self.nx_system))
-        self.agent_features = np.zeros((self.n_agents, self.n_action + 0*(self.n_agents - 1)))
+        self.agent_features = np.zeros((self.n_agents, self.n_action + (self.n_agents - 1)))
         self.diff_target = np.zeros((self.n_agents, self.n_action))
 
         self.a_net = np.zeros((self.n_agents, self.n_agents))
@@ -243,15 +243,15 @@ class QuadrotorFormation(gym.Env):
             self.agent_features[i,1] = self.quadrotors[i].state[1] / self.y_lim
             self.agent_features[i,2] = self.quadrotors[i].state[2] / self.z_lim
 
-            # cnt = 3
-            # for j in range(self.n_agents):
-            #     if i != j:
-            #         distance = np.sqrt((self.quadrotors[i].state[0] - self.quadrotors[j].state[0])**2 + 
-            #                            (self.quadrotors[i].state[1] - self.quadrotors[j].state[1])**2 +
-            #                            (self.quadrotors[i].state[2] - self.quadrotors[j].state[2])**2) / 32.0
+            cnt = 3
+            for j in range(self.n_agents):
+                if i != j:
+                    distance = np.sqrt((self.quadrotors[i].state[0] - self.quadrotors[j].state[0])**2 + 
+                                       (self.quadrotors[i].state[1] - self.quadrotors[j].state[1])**2 +
+                                       (self.quadrotors[i].state[2] - self.quadrotors[j].state[2])**2) / 32.0
                     
-            #         self.agent_features[i,cnt] = distance
-            #         cnt += 1
+                    self.agent_features[i,cnt] = distance
+                    cnt += 1
 
 
         uncertainty_mat = np.reshape(self.uncertainty_values, (1, 1, self.out_shape, self.out_shape))
@@ -260,7 +260,7 @@ class QuadrotorFormation(gym.Env):
 
     def reset(self):
         x = np.zeros((self.n_agents, 2 * self.n_action))
-        self.agent_features = np.zeros((self.n_agents, self.n_action + 0*(self.n_agents - 1)))
+        self.agent_features = np.zeros((self.n_agents, self.n_action + (self.n_agents - 1)))
         self.quadrotors = []
         self.uncertainty_values = uniform(low=0.95, high=1.0, size=(self.uncertainty_grids.shape[0],))
         self.grid_visits = np.zeros((self.uncertainty_grids.shape[0], ))

@@ -81,7 +81,7 @@ class QuadrotorFormation(gym.Env):
 
         # intitialize state matrices
         self.total_states = np.zeros((self.n_agents, self.nx_system))
-        self.agent_features = np.zeros((self.n_agents, self.n_action + 0*(self.n_agents - 1)))
+        self.agent_features = np.zeros((self.n_agents, self.n_action + (self.n_agents - 1)))
         self.diff_target = np.zeros((self.n_agents, self.n_action))
 
         self.a_net = np.zeros((self.n_agents, self.n_agents))
@@ -119,7 +119,7 @@ class QuadrotorFormation(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def step(self, ref_pos):
+    def step(self, ref_pos, agent_pos_dict=None):
         #self.nu = 1
         self.agent_targets = np.reshape(ref_pos, (self.n_agents, self.n_action))
         self.fail_check = np.zeros(self.n_agents)
@@ -129,8 +129,6 @@ class QuadrotorFormation(gym.Env):
         traj_list = []
         drone_crash = False
         reward_list = np.zeros(self.n_agents)
-
-        agent_pos_dict = {}
 
         # self.agent_targets = np.copy(self.agent_pos_goal)
 
@@ -206,10 +204,10 @@ class QuadrotorFormation(gym.Env):
                 reward_list[i] -= 0.025
 
                 if ind % 100 == 0:
-                    if self.visualization:
-                        self.visualize()
-                    # pos_list.append([self.quadrotors[i].state[0], self.quadrotors[i].state[1],
-                    #                  self.quadrotors[i].state[2], self.quadrotors[i].state[5]])
+                    # if self.visualization:
+                    #     self.visualize()
+                    agent_pos_dict[i].append([self.quadrotors[i].state[0], self.quadrotors[i].state[1],
+                                     self.quadrotors[i].state[2], self.quadrotors[i].state[5]])
 
                     differences = current_pos - self.uncertainty_grids
                     distances = np.sum(differences * differences, axis=1)
@@ -244,13 +242,11 @@ class QuadrotorFormation(gym.Env):
                     # print ("current_pos: ", current_pos)
                     # print ("closest grid: ", self.uncertainty_grids[min_ind])
                     
-            # agent_pos_dict[i] = pos_list
-
             print("Current X:{0:.3}, Y:{1:.3}, Z:{2:.3}, Reward:{3:.5} \n".format(
                 self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2], reward_list[i]))
             
 
-        return self._get_obs(), reward_list, done, {}
+        return self._get_obs(), reward_list, done, agent_pos_dict
 
     def _get_obs(self):
 
@@ -276,7 +272,7 @@ class QuadrotorFormation(gym.Env):
 
     def reset(self):
         x = np.zeros((self.n_agents, 2 * self.n_action))
-        self.agent_features = np.zeros((self.n_agents, self.n_action + 0*(self.n_agents - 1)))
+        self.agent_features = np.zeros((self.n_agents, self.n_action + (self.n_agents - 1)))
         self.quadrotors = []
         self.uncertainty_values = uniform(low=0.95, high=1.0, size=(self.uncertainty_grids.shape[0],))
         self.grid_visits = np.zeros((self.uncertainty_grids.shape[0], ))
@@ -322,7 +318,7 @@ class QuadrotorFormation(gym.Env):
 
         return a_net
 
-    def visualize(self, agent_pos_dict=None, mode='human'):
+    def visualize(self, pos_list=None, mode='human'):
         if self.viewer is None:
             self.viewer = rendering.Viewer(500, 500)
             self.viewer.set_bounds(-self.x_lim,
@@ -338,8 +334,8 @@ class QuadrotorFormation(gym.Env):
 
         for i in range(self.n_agents):
             self.viewer.add_onetime(self.drones[i])
-            self.drone_transforms[i].set_translation(self.quadrotors[i].state[0], self.quadrotors[i].state[1])
-            self.drone_transforms[i].set_rotation(self.quadrotors[i].state[5])
+            self.drone_transforms[i].set_translation(pos_list[i][0], pos_list[i][1])
+            self.drone_transforms[i].set_rotation(pos_list[i][3])
 
         # N_max = np.max([len(agent_pos_dict[i]) for i in agent_pos_dict.keys()])
 
@@ -349,6 +345,6 @@ class QuadrotorFormation(gym.Env):
         #         if j < len(agent_pos_dict[i]):
         #             pos_angle = agent_pos_dict[i][j]
         #             self.drone_transforms[i].set_translation(pos_angle[0], pos_angle[1])
-        #             self.drone_transforms[i].set_rotation(pos_angle[3])
+        #             self.drone_transforms[i].set_rotation(pos_angle[3])        
             
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')

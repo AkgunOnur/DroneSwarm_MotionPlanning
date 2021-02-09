@@ -14,7 +14,7 @@ from torch.distributions import Categorical
 import torch
 import networkx as nx
 import matplotlib.pyplot as plt
-from quadrotor_formation_3 import QuadrotorFormation
+from point_mass_formation import QuadrotorFormation
 
 import os
 import datetime
