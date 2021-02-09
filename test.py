@@ -46,13 +46,17 @@ N_iteration = 200
 N_episode = 5
 
 env = QuadrotorFormation(n_agents = n_agents, visualization=True)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 for i in range(n_agents):
-    filename = './models/actor_' + str(i+1) + '_1600_policy.pt'
+    filename_actor = './models/actor_' + str(i+1) + '_policy.pt'
+    filename_critic1 = './models/critic_' + str(i+1) + '_q_net_1.pt'
+    filename_critic2 = './models/critic_' + str(i+1) + '_q_net_2.pt'
     policy = SAC(env, gamma, tau, alpha, q_lr, p_lr, a_lr, buffer_maxlen, n_agents)
-    policy.policy_net.load_state_dict(torch.load(filename))
+    policy.policy_net.load_state_dict(torch.load(filename_actor, map_location=device))
+    policy.q_net1.load_state_dict(torch.load(filename_critic1, map_location=device))
+    policy.q_net2.load_state_dict(torch.load(filename_critic2, map_location=device))
     policy_list.append(policy)
-
 
 # pdb.set_trace()
 

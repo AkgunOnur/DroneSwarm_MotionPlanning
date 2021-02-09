@@ -30,8 +30,8 @@ if not os.path.exists("./models"):
 # env = gym.make(env_name)
 def main():
     n_agents = 3
-    N_episodes = 5000
-    N_iteration = 200
+    N_episodes = 20000
+    N_iteration = 250
     train_episode_modulo = 5
     batch_size = 256
     
@@ -73,12 +73,12 @@ def main():
     for episode in range(1, N_episodes+1):
         reward_over_eps = []
         agent_obs, pos_target = env.reset()
-        for time in range(N_iteration):
+        for time in range(1, N_iteration+1):
             # if total_timesteps < start_timesteps:
             #     action = env.action_space.sample()
             # else:
             print("\n Episode: {0}/{2}, Iteration: {1}/{3}".format(
-                episode + 1, time + 1, N_episodes, N_iteration))
+                episode, time, N_episodes, N_iteration))
 
             action_list = []
             ref_pos = np.zeros((n_agents, 3))
@@ -114,22 +114,21 @@ def main():
 
         # Used to determine when the environment is solved.
         mean_reward = np.mean(reward_over_eps)
-        if((episode + 1) % train_episode_modulo == 0):
+        if(episode % train_episode_modulo == 0):
             for i in range(n_agents):
                 policy_list[i].train(5, batch_size)
 
         if episode % 1 == 0:
-            print('Episode {}\tLast length: {:5d}\tAverage reward over episode: {:.2f}'.format(
+            print('Episode {}\tIteration: {:5d}\tAverage reward over episode: {:.2f}'.format(
                 episode, time, mean_reward))
 
-        # Save policy for every 5000 episodes
-        if mean_reward > mean_reward_pr and episode > train_episode_modulo:
+        if mean_reward > mean_reward_pr:
             mean_reward_pr = mean_reward
             for i in range(n_agents):
-                policy_list[i].save_checkpoint('models/actor_' + str(i+1), 'models/critic_' + str(i+1))
-        elif episode % 100 == 0:
+                policy_list[i].save_checkpoint('models/best_actor_' + str(i+1), 'models/best_critic_' + str(i+1))
+        elif episode % 500 == 0:
             for i in range(n_agents):
-                policy_list[i].save_checkpoint('models/actor_' + str(i+1) + "_" + str(episode), 'models/critic_' + str(i+1) + "_" + str(episode))
+                policy_list[i].save_checkpoint('models/actor_' + str(i+1) + '_' + str(episode), 'models/critic_' + str(i+1) + '_' + str(episode))
 
         plotting_rew.append(np.mean(reward_over_eps))
 

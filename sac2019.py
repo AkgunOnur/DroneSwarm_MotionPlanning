@@ -87,34 +87,45 @@ class SoftQNetwork(nn.Module):
         # self.linear3.weight.data.uniform_(-init_w, init_w)
         # self.linear3.bias.data.uniform_(-init_w, init_w)
 
-        self.conv1 = nn.Conv2d(
-            in_channels=1, out_channels=1, kernel_size=7, stride=2)
-        self.conv2 = nn.Conv2d(
-            in_channels=1, out_channels=1, kernel_size=7, stride=2)
-        self.conv3 = nn.Conv2d(
-            in_channels=1, out_channels=1, kernel_size=7, stride=2)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.linear1 = nn.Linear(64, 12)
-        self.linear2 = nn.Linear(3 + (n_agents - 1), 3 + (n_agents - 1))
-        self.linear3 = nn.Linear(18 + (n_agents - 1), 3)
-        self.linear4 = nn.Linear(15 + (n_agents - 1), 3)
+        self.conv_net = nn.Sequential(
+            nn.Conv2d(1, 3, 3, 2),         # (N, 1, 164, 164) -> (N,  3, 81, 81)
+            nn.BatchNorm2d(3),           # (N,  6, 7, 7) -> (N,  6, 7, 7)
+            nn.ReLU(),
+            nn.AvgPool2d(2, stride=2),  # (N, 3, 81, 81) -> (N,  3, 40, 40)
+            nn.Conv2d(3, 6, 3, 2),         # (N, 3, 40, 40) -> (N,  6, 19, 19)
+            nn.BatchNorm2d(6),           # (N,  6, 7, 7) -> (N,  6, 7, 7)
+            nn.ReLU(),
+            nn.AvgPool2d(2, stride=2),  # (N, 6, 19, 19) -> (N,  6, 9, 9)
+            nn.Conv2d(6, 6, 3, 2),         # (N, 6, 9, 9) -> (N,  6, 7, 7)
+            nn.BatchNorm2d(6),           # (N,  6, 7, 7) -> (N,  6, 4, 4)
+            nn.ReLU(),
+        )
 
-    def forward(self, state, uncertainty, action, N=1):
-        out1 = F.relu(self.conv1(uncertainty))
-        out2 = F.relu(self.pool(out1))
-        out3 = F.relu(self.conv2(out2))
-        #print("uncertain_conv3_output: ", out3)
-        out4 = F.relu(self.pool(out3))
-        #print("uncertain_conv4_output: ", out4)
-        # out5 = F.relu(self.conv2(out4))
-        # print ("uncertain_conv5_output: " , out5)
-        out5 = out4.view(N, -1)
+        self.linear1 = nn.Linear(96, 12)
+        self.linear2 = nn.Linear(3 + 3*(n_agents - 1), 3 + 3*(n_agents - 1))
+        self.linear3 = nn.Linear(18 + 3*(n_agents - 1), 3)
+
+        # self.conv1 = nn.Conv2d(
+        #     in_channels=1, out_channels=1, kernel_size=7, stride=2)
+        # self.conv2 = nn.Conv2d(
+        #     in_channels=1, out_channels=1, kernel_size=7, stride=2)
+        # self.conv3 = nn.Conv2d(
+        #     in_channels=1, out_channels=1, kernel_size=7, stride=2)
+        # self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        # self.linear1 = nn.Linear(64, 12)
+        # self.linear2 = nn.Linear(3 + (n_agents - 1), 3 + (n_agents - 1))
+        # self.linear3 = nn.Linear(18 + (n_agents - 1), 3)
+
+    def forward(self, states, uncertainty, action, N=1):
+        out = self.conv_net(uncertainty)
+        out2 = out.view(N, -1)
+
         # Fully Connected Layer for Uncertainty Map
-        uncertain_fcn = F.relu(self.linear1(out5))
+        uncertain_fcn = F.dropout(F.relu(self.linear1(out2)), 0.25)
         #print("uncertain_fcn_output: ", uncertain_fcn)
 
         # Fully Connected Layer for Features
-        features_fcn = F.relu(self.linear2(state))
+        features_fcn = F.dropout(F.relu(self.linear2(states)), 0.25)
 
         # Uncertainty FCN and Features FCN are combined
         x = torch.cat((features_fcn, uncertain_fcn), 1)
@@ -143,17 +154,46 @@ class PolicyNetwork(nn.Module):
         # self.log_std_linear.weight.data.uniform_(-init_w, init_w)
         # self.log_std_linear.bias.data.uniform_(-init_w, init_w)
 
-        self.conv1 = nn.Conv2d(
-            in_channels=1, out_channels=1, kernel_size=7, stride=2)
-        self.conv2 = nn.Conv2d(
-            in_channels=1, out_channels=1, kernel_size=7, stride=2)
-        self.conv3 = nn.Conv2d(
-            in_channels=1, out_channels=1, kernel_size=7, stride=2)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.linear1 = nn.Linear(64, 12)
-        self.linear2 = nn.Linear(3 + (n_agents - 1), 3 + (n_agents - 1))
-        self.linear3 = nn.Linear(15 + (n_agents - 1), 3)
-        self.linear4 = nn.Linear(15 + (n_agents - 1), 3)
+        self.conv_net = nn.Sequential(
+            nn.Conv2d(1, 3, 3, 2),         # (N, 1, 164, 164) -> (N,  3, 81, 81)
+            nn.BatchNorm2d(3),           # (N,  6, 7, 7) -> (N,  6, 7, 7)
+            nn.ReLU(),
+            nn.AvgPool2d(2, stride=2),  # (N, 3, 81, 81) -> (N,  3, 40, 40)
+            nn.Conv2d(3, 6, 3, 2),         # (N, 3, 40, 40) -> (N,  6, 19, 19)
+            nn.BatchNorm2d(6),           # (N,  6, 7, 7) -> (N,  6, 7, 7)
+            nn.ReLU(),
+            nn.AvgPool2d(2, stride=2),  # (N, 6, 19, 19) -> (N,  6, 9, 9)
+            nn.Conv2d(6, 6, 3, 2),         # (N, 6, 9, 9) -> (N,  6, 7, 7)
+            nn.BatchNorm2d(6),           # (N,  6, 7, 7) -> (N,  6, 4, 4)
+            nn.ReLU(),
+        )
+
+        self.linear1 = nn.Linear(96, 12)
+        self.linear2 = nn.Linear(3 + 3*(n_agents - 1), 3 + 3*(n_agents - 1))
+        self.linear3 = nn.Linear(15 + 3*(n_agents - 1), 3)
+        self.linear4 = nn.Linear(15 + 3*(n_agents - 1), 3)
+
+        # linear_model = nn.Sequential(
+        #     nn.Linear(96, 12),
+        #     nn.Dropout(0.5), #50 % probability 
+        #     nn.ReLU(),
+        #     torch.nn.Linear(N_h, N_h),
+        #     torch.nn.Dropout(0.2), #20% probability
+        #     torch.nn.ReLU(),
+        #     torch.nn.Linear(N_h, 1),
+        # )
+
+        # self.conv1 = nn.Conv2d(
+        #     in_channels=1, out_channels=1, kernel_size=3, stride=2)
+        # self.conv2 = nn.Conv2d(
+        #     in_channels=1, out_channels=1, kernel_size=7, stride=2)
+        # self.conv3 = nn.Conv2d(
+        #     in_channels=1, out_channels=1, kernel_size=3, stride=2)
+        # self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        # self.linear1 = nn.Linear(64, 12)
+        # self.linear2 = nn.Linear(3 + (n_agents - 1), 3 + (n_agents - 1))
+        # self.linear3 = nn.Linear(15 + (n_agents - 1), 3)
+        # self.linear4 = nn.Linear(15 + (n_agents - 1), 3)
 
         # torch.nn.init.xavier_uniform(self.conv1.weight)
         # torch.nn.init.xavier_uniform(self.conv2.weight)
@@ -164,23 +204,15 @@ class PolicyNetwork(nn.Module):
         # torch.nn.init.xavier_uniform(self.linear4.weight)
 
     def forward(self, states, uncertainty, N=1):
-        out1 = F.relu(self.conv1(uncertainty))
-        out2 = F.relu(self.pool(out1))
-        out3 = F.relu(self.conv2(out2))
-        #print("uncertain_conv3_output: ", out3)
-        out4 = F.relu(self.pool(out3))
-        #print("uncertain_conv4_output: ", out4)
-        # out5 = F.relu(self.conv2(out4))
-        # print ("uncertain_conv5_output: " , out5)
-        out5 = out4.view(N, -1)
-        #print("uncertain_conv5_output: ", out5.shape)
+        out = self.conv_net(uncertainty)
+        out2 = out.view(N, -1)
 
         # Fully Connected Layer for Uncertainty Map
-        uncertain_fcn = F.relu(self.linear1(out5))
+        uncertain_fcn = F.dropout(F.relu(self.linear1(out2)), 0.25)
         #print("uncertain_fcn_output: ", uncertain_fcn)
 
         # Fully Connected Layer for Features
-        features_fcn = F.relu(self.linear2(states))
+        features_fcn = F.dropout(F.relu(self.linear2(states)), 0.25)
         # print ("states: ", states.size())
         # print ("uncertain_fcn: ", uncertain_fcn.size())
         # print ("features_fcn: ", features_fcn.size())
@@ -406,3 +438,5 @@ class SACAgent:
             f'{q_net}_q_net_2.pt', map_location=self.device)
         self.policy_net = torch.load(
             f'{policy_net}_policy.pt', map_location=self.device)
+        
+    
