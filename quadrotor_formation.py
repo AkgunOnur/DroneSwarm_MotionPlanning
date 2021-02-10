@@ -15,6 +15,8 @@ from quadrotor_dynamics import Quadrotor
 from numpy.random import uniform
 from trajectory import Trajectory
 from time import sleep
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
+
 
 
 
@@ -26,6 +28,10 @@ font = {'family': 'sans-serif',
 class QuadrotorFormation(gym.Env):
 
     def __init__(self, n_agents=1, visualization=True):
+
+        self.X_list = []
+        self.Y_list = []
+        self.Z_list = []
 
         config_file = path.join(path.dirname(__file__), "formation_flying.cfg")
         config = configparser.ConfigParser()
@@ -81,7 +87,7 @@ class QuadrotorFormation(gym.Env):
 
         # intitialize state matrices
         self.total_states = np.zeros((self.n_agents, self.nx_system))
-        self.agent_features = np.zeros((self.n_agents, self.n_action + (self.n_agents - 1)))
+        self.agent_features = np.zeros((self.n_agents, self.n_action + 3*(self.n_agents - 1)))
         self.diff_target = np.zeros((self.n_agents, self.n_action))
 
         self.a_net = np.zeros((self.n_agents, self.n_agents))
@@ -212,6 +218,16 @@ class QuadrotorFormation(gym.Env):
                     differences = current_pos - self.uncertainty_grids
                     distances = np.sum(differences * differences, axis=1)
                     indices = distances < self.dist
+
+                    for a in range(self.uncertainty_grids[indices].shape[0]):
+                        self.X_list.append(
+                            int(self.uncertainty_grids[indices][a, 0]))
+                        self.Y_list.append(
+                            int(self.uncertainty_grids[indices][a, 1]))
+                        self.Z_list.append(
+                            int(self.uncertainty_grids[indices][a, 2]))
+
+
                     reward_list[i] += 100.0 * np.sum(self.uncertainty_values[indices])
                     # out_of_map = 100*(np.clip(current_pos[0]-self.x_lim, 0, 1e3) +
                     #                   np.clip(current_pos[1]-self.y_lim, 0, 1e3) +
@@ -255,15 +271,14 @@ class QuadrotorFormation(gym.Env):
             self.agent_features[i,1] = self.quadrotors[i].state[1] / self.y_lim
             self.agent_features[i,2] = self.quadrotors[i].state[2] / self.z_lim
 
-            # cnt = 3
-            # for j in range(self.n_agents):
-            #     if i != j:
-            #         distance = np.sqrt((self.quadrotors[i].state[0] - self.quadrotors[j].state[0])**2 + 
-            #                            (self.quadrotors[i].state[1] - self.quadrotors[j].state[1])**2 +
-            #                            (self.quadrotors[i].state[2] - self.quadrotors[j].state[2])**2) / 32.0
-                    
-            #         self.agent_features[i,cnt] = distance
-            #         cnt += 1
+            cnt = 3
+            for j in range(self.n_agents):
+                if i != j:                    
+                    self.agent_features[i,cnt] = (self.quadrotors[i].state[0] - self.quadrotors[j].state[0]) / self.x_lim
+                    self.agent_features[i,cnt+1] = (self.quadrotors[i].state[1] - self.quadrotors[j].state[1]) / self.y_lim
+                    self.agent_features[i,cnt+2] = (self.quadrotors[i].state[2] - self.quadrotors[j].state[2]) / self.z_lim
+
+                    cnt += 3
 
 
         uncertainty_mat = np.reshape(self.uncertainty_values, (1, 1, self.out_shape, self.out_shape))
@@ -272,7 +287,7 @@ class QuadrotorFormation(gym.Env):
 
     def reset(self):
         x = np.zeros((self.n_agents, 2 * self.n_action))
-        self.agent_features = np.zeros((self.n_agents, self.n_action + (self.n_agents - 1)))
+        self.agent_features = np.zeros((self.n_agents, self.n_action + 3*(self.n_agents - 1)))
         self.quadrotors = []
         self.uncertainty_values = uniform(low=0.95, high=1.0, size=(self.uncertainty_grids.shape[0],))
         self.grid_visits = np.zeros((self.uncertainty_grids.shape[0], ))
@@ -317,6 +332,31 @@ class QuadrotorFormation(gym.Env):
             a_net = a_net / n_neighbors
 
         return a_net
+
+    def uncertainty_visualizer(self):
+        # prepare some coordinates
+        # np.mgrid[-20:20:41j, -20:20:41j, 0:15:16j]
+        voxels = np.zeros((41, 41, 16))
+        voxels[:, :, :] = False
+        # set the colors of each object
+        x, y, z = np.indices(np.array(voxels.shape) + 1)
+
+        # and plot everything
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+        # print(self.Z_list)
+        for i in range(len(self.X_list)):
+            voxels[:, :, self.Z_list[i] - 1][self.X_list[i] +
+                                             20, self.Y_list[i] + 20] = True
+
+        ax.voxels(x - 20, y - 20, z, voxels, facecolors='red', edgecolor='k')
+        ax.set_xlim(-20, 20)
+        ax.set_ylim(-20, 20)
+        ax.set_zlim(0, 15)
+        ax.set_xlabel('X - Dim')
+        ax.set_ylabel('Y - Dim')
+        ax.set_zlabel('Z - Dim')
+        plt.show()
 
     def visualize(self, pos_list=None, mode='human'):
         if self.viewer is None:
