@@ -45,13 +45,13 @@ policy_list = []
 N_iteration = 200
 N_episode = 5
 
-env = QuadrotorFormation(n_agents = n_agents, visualization=True)
+env = QuadrotorFormation(n_agents = n_agents, visualization=False)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 for i in range(n_agents):
-    filename_actor = './models/actor_' + str(i+1) + '_policy.pt'
-    filename_critic1 = './models/critic_' + str(i+1) + '_q_net_1.pt'
-    filename_critic2 = './models/critic_' + str(i+1) + '_q_net_2.pt'
+    filename_actor = './models/best_actor_' + str(i+1) + '_policy.pt'
+    filename_critic1 = './models/best_critic_' + str(i+1) + '_q_net_1.pt'
+    filename_critic2 = './models/best_critic_' + str(i+1) + '_q_net_2.pt'
     policy = SAC(env, gamma, tau, alpha, q_lr, p_lr, a_lr, buffer_maxlen, n_agents)
     policy.policy_net.load_state_dict(torch.load(filename_actor, map_location=device))
     policy.q_net1.load_state_dict(torch.load(filename_critic1, map_location=device))
@@ -125,7 +125,7 @@ def main():
         plotting_rew.append(np.mean(reward_over_eps))
 
         if episode % 1 == 0:
-            with open('models/agents_positions.pkl', 'wb') as f:
+            with open('agents_positions.pkl', 'wb') as f:
                 pickle.dump(agent_pos_over_episodes, f)
 
     np.savetxt('Test_Relative_Goal_Reaching_for_%d_agents_rs_rg.txt' %
