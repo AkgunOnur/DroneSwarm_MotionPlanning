@@ -42,10 +42,10 @@ q_lr = 1e-3
 p_lr = 1e-3
 buffer_maxlen = 1_000_000
 policy_list = []
-N_iteration = 200
+N_iteration = 1000
 N_episode = 5
 
-env = QuadrotorFormation(n_agents = n_agents, visualization=False)
+env = QuadrotorFormation(n_agents = n_agents, visualization=True)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 for i in range(n_agents):
@@ -114,6 +114,8 @@ def main():
                     pos_list.append(agent_pos_dict[i][index])
                 env.visualize(pos_list)
                 sleep(0.01)
+
+            env.uncertainty_visualizer()
 
 
         # Used to determine when the environment is solved.

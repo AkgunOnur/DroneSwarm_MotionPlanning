@@ -29,29 +29,29 @@ class BasicBuffer:
 
     def sample(self, batch_size):
         state_batch = []
-        uncertainty_batch = []
+        conv_batch = []
         action_batch = []
         reward_batch = []
         next_state_batch = []
-        next_uncertainty_batch = []
+        next_conv_batch = []
         done_batch = []
 
         batch = random.sample(self.buffer, batch_size)
 
         for experience in batch:
-            state_uncertainty, action, reward, next_state_uncertainty, done = experience
-            state, uncertainty = state_uncertainty
-            next_state, next_uncertainty = next_state_uncertainty
+            state_conv, action, reward, next_state_conv, done = experience
+            state, conv = state_conv
+            next_state, next_conv = next_state_conv
 
             state_batch.append(state)
-            uncertainty_batch.append(uncertainty)
+            conv_batch.append(conv)
             action_batch.append(action)
             reward_batch.append(reward)
             next_state_batch.append(next_state)
-            next_uncertainty_batch.append(next_uncertainty)
+            next_conv_batch.append(next_conv)
             done_batch.append(done)
 
-        return (state_batch, uncertainty_batch, action_batch, reward_batch, next_state_batch, next_uncertainty_batch, done_batch)
+        return (state_batch, conv_batch, action_batch, reward_batch, next_state_batch, next_conv_batch, done_batch)
 
     def __len__(self):
         return len(self.buffer)
@@ -88,20 +88,20 @@ class SoftQNetwork(nn.Module):
         # self.linear3.bias.data.uniform_(-init_w, init_w)
 
         self.conv_net = nn.Sequential(
-            nn.Conv2d(1, 3, 3, 2),         # (N, 1, 164, 164) -> (N,  3, 81, 81)
-            nn.BatchNorm2d(3),           # (N,  6, 7, 7) -> (N,  6, 7, 7)
+            nn.Conv2d(4, 3, 3, 2),        
+            nn.BatchNorm2d(3),           
             nn.ReLU(),
-            nn.AvgPool2d(2, stride=2),  # (N, 3, 81, 81) -> (N,  3, 40, 40)
-            nn.Conv2d(3, 6, 3, 2),         # (N, 3, 40, 40) -> (N,  6, 19, 19)
-            nn.BatchNorm2d(6),           # (N,  6, 7, 7) -> (N,  6, 7, 7)
+            nn.AvgPool2d(2, stride=2),  
+            nn.Conv2d(3, 6, 3, 1),         
+            nn.BatchNorm2d(6),           
             nn.ReLU(),
-            nn.AvgPool2d(2, stride=2),  # (N, 6, 19, 19) -> (N,  6, 9, 9)
-            nn.Conv2d(6, 6, 3, 2),         # (N, 6, 9, 9) -> (N,  6, 7, 7)
-            nn.BatchNorm2d(6),           # (N,  6, 7, 7) -> (N,  6, 4, 4)
+            nn.AvgPool2d(2, stride=2),  
+            nn.Conv2d(6, 6, 3, 1),         
+            nn.BatchNorm2d(6),          
             nn.ReLU(),
         )
 
-        self.linear1 = nn.Linear(96, 12)
+        self.linear1 = nn.Linear(6*7*7, 12)
         self.linear2 = nn.Linear(3 + 3*(n_agents - 1), 3 + 3*(n_agents - 1))
         self.linear3 = nn.Linear(18 + 3*(n_agents - 1), 3)
 
@@ -116,19 +116,19 @@ class SoftQNetwork(nn.Module):
         # self.linear2 = nn.Linear(3 + (n_agents - 1), 3 + (n_agents - 1))
         # self.linear3 = nn.Linear(18 + (n_agents - 1), 3)
 
-    def forward(self, states, uncertainty, action, N=1):
-        out = self.conv_net(uncertainty)
+    def forward(self, states, conv, action, N=1):
+        out = self.conv_net(conv)
         out2 = out.view(N, -1)
 
-        # Fully Connected Layer for Uncertainty Map
-        uncertain_fcn = F.dropout(F.relu(self.linear1(out2)), 0.25)
+        # Fully Connected Layer for Convolutional layer
+        conv_fcn = F.dropout(F.relu(self.linear1(out2)), 0.25)
         #print("uncertain_fcn_output: ", uncertain_fcn)
 
         # Fully Connected Layer for Features
         features_fcn = F.dropout(F.relu(self.linear2(states)), 0.25)
 
-        # Uncertainty FCN and Features FCN are combined
-        x = torch.cat((features_fcn, uncertain_fcn), 1)
+        # Conv FCN and Features FCN are combined
+        x = torch.cat((features_fcn, conv_fcn), 1)
 
         x = torch.cat([x, action], 1)
         x = self.linear3(x)
@@ -155,20 +155,20 @@ class PolicyNetwork(nn.Module):
         # self.log_std_linear.bias.data.uniform_(-init_w, init_w)
 
         self.conv_net = nn.Sequential(
-            nn.Conv2d(1, 3, 3, 2),         # (N, 1, 164, 164) -> (N,  3, 81, 81)
-            nn.BatchNorm2d(3),           # (N,  6, 7, 7) -> (N,  6, 7, 7)
+            nn.Conv2d(4, 3, 3, 2),        
+            nn.BatchNorm2d(3),           
             nn.ReLU(),
-            nn.AvgPool2d(2, stride=2),  # (N, 3, 81, 81) -> (N,  3, 40, 40)
-            nn.Conv2d(3, 6, 3, 2),         # (N, 3, 40, 40) -> (N,  6, 19, 19)
-            nn.BatchNorm2d(6),           # (N,  6, 7, 7) -> (N,  6, 7, 7)
+            nn.AvgPool2d(2, stride=2),  
+            nn.Conv2d(3, 6, 3, 1),         
+            nn.BatchNorm2d(6),           
             nn.ReLU(),
-            nn.AvgPool2d(2, stride=2),  # (N, 6, 19, 19) -> (N,  6, 9, 9)
-            nn.Conv2d(6, 6, 3, 2),         # (N, 6, 9, 9) -> (N,  6, 7, 7)
-            nn.BatchNorm2d(6),           # (N,  6, 7, 7) -> (N,  6, 4, 4)
+            nn.AvgPool2d(2, stride=2),  
+            nn.Conv2d(6, 6, 3, 1),         
+            nn.BatchNorm2d(6),          
             nn.ReLU(),
         )
 
-        self.linear1 = nn.Linear(96, 12)
+        self.linear1 = nn.Linear(6*7*7, 12)
         self.linear2 = nn.Linear(3 + 3*(n_agents - 1), 3 + 3*(n_agents - 1))
         self.linear3 = nn.Linear(15 + 3*(n_agents - 1), 3)
         self.linear4 = nn.Linear(15 + 3*(n_agents - 1), 3)
@@ -203,12 +203,12 @@ class PolicyNetwork(nn.Module):
         # torch.nn.init.xavier_uniform(self.linear3.weight)
         # torch.nn.init.xavier_uniform(self.linear4.weight)
 
-    def forward(self, states, uncertainty, N=1):
-        out = self.conv_net(uncertainty)
+    def forward(self, states, conv, N=1):
+        out = self.conv_net(conv)
         out2 = out.view(N, -1)
 
-        # Fully Connected Layer for Uncertainty Map
-        uncertain_fcn = F.dropout(F.relu(self.linear1(out2)), 0.25)
+        # Fully Connected Layer for Convolutional layer
+        conv_fcn = F.dropout(F.relu(self.linear1(out2)), 0.25)
         #print("uncertain_fcn_output: ", uncertain_fcn)
 
         # Fully Connected Layer for Features
@@ -217,8 +217,8 @@ class PolicyNetwork(nn.Module):
         # print ("uncertain_fcn: ", uncertain_fcn.size())
         # print ("features_fcn: ", features_fcn.size())
 
-        # Uncertainty FCN and Features FCN are combined
-        x = torch.cat((features_fcn, uncertain_fcn), 1)
+        # Conv FCN and Features FCN are combined
+        x = torch.cat((features_fcn, conv_fcn), 1)
 
         mu = F.tanh(self.linear3(x))
         sigma = F.tanh(self.linear4(x))
@@ -235,8 +235,8 @@ class PolicyNetwork(nn.Module):
 
         # return mean, log_std
 
-    def sample(self, next_states, next_uncertainty, N=1, epsilon=1e-5):
-        mean, log_std = self.forward(next_states, next_uncertainty, N)
+    def sample(self, next_states, next_conv, N=1, epsilon=1e-5):
+        mean, log_std = self.forward(next_states, next_conv, N)
         std = log_std.exp()
 
         normal = Normal(mean, std)
@@ -266,6 +266,7 @@ class SACAgent:
         self.tau = tau
         self.update_step = 0
         self.delay_step = 2
+        self.n_agents = n_agents
 
         # initialize networks
         self.q_net1 = SoftQNetwork(
@@ -302,11 +303,11 @@ class SACAgent:
 
         self.replay_buffer = BasicBuffer(buffer_maxlen)
 
-    def get_action(self, drone_state, uncertainty):
+    def get_action(self, drone_state, conv):
         drone_state = Variable(torch.FloatTensor(drone_state)).to(self.device)
-        uncertainty = Variable(torch.FloatTensor(uncertainty)).to(self.device)
+        conv = Variable(torch.FloatTensor(conv)).to(self.device)
         #state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-        mean, log_std = self.policy_net.forward(drone_state, uncertainty)
+        mean, log_std = self.policy_net.forward(drone_state, conv)
         std = log_std.exp()
 
         normal = Normal(mean, std)
@@ -332,52 +333,52 @@ class SACAgent:
 
     def train(self, iterations, batch_size):
         for _ in range(iterations):
-            states, uncertainties, actions, rewards, next_states, next_uncertainties, dones = self.replay_buffer.sample(
+            states, conv_stacks, actions, rewards, next_states, next_conv_stacks, dones = self.replay_buffer.sample(
                 batch_size)
 
             states = torch.FloatTensor(states).to(self.device)
-            uncertainties = torch.FloatTensor(uncertainties).to(self.device)
+            conv_stacks = torch.FloatTensor(conv_stacks).to(self.device)
             actions = torch.FloatTensor(actions).to(self.device)
             rewards = torch.FloatTensor(rewards).to(self.device)
             next_states = torch.FloatTensor(next_states).to(self.device)
-            next_uncertainties = torch.FloatTensor(
-                next_uncertainties).to(self.device)
+            next_conv_stacks = torch.FloatTensor(
+                next_conv_stacks).to(self.device)
             dones = torch.FloatTensor(dones).to(self.device)
             dones = dones.view(dones.size(0), -1)
 
             states = states.resize_((batch_size, states.size()[-1]))
             next_states = next_states.resize_(
                 (batch_size, next_states.size()[-1]))
-            uncertainties = uncertainties.resize_(
-                (batch_size, 1, uncertainties.size()[-1], uncertainties.size()[-1]))
-            next_uncertainties = next_uncertainties.resize_(
-                (batch_size, 1, next_uncertainties.size()[-1], next_uncertainties.size()[-1]))
+            conv_stacks = conv_stacks.resize_(
+                (batch_size, self.n_agents+2, conv_stacks.size()[-1], conv_stacks.size()[-1]))
+            next_conv_stacks = next_conv_stacks.resize_(
+                (batch_size, self.n_agents+2, next_conv_stacks.size()[-1], next_conv_stacks.size()[-1]))
 
             # print ("states: ", states.size())
-            # print ("uncertainties: ", uncertainties.size())
+            # print ("conv_stacks: ", conv_stacks.size())
             # print ("actions: ", actions.size())
             # print ("rewards: ", rewards.size())
             # print ("next_states: ", next_states.size())
             # print ("rewards: ", rewards.size())
             # print ("next_states: ", next_states.size())
-            # print ("next_uncertainties: ", next_uncertainties.size())
+            # print ("next_conv_stacks: ", next_conv_stacks.size())
             # print ("dones: ", dones.size())
 
             next_actions, next_log_pi = self.policy_net.sample(
-                next_states, next_uncertainties, N=batch_size)
+                next_states, next_conv_stacks, N=batch_size)
             next_q1 = self.target_q_net1(
-                next_states, next_uncertainties, next_actions.to(self.device), N=batch_size)
+                next_states, next_conv_stacks, next_actions.to(self.device), N=batch_size)
             next_q2 = self.target_q_net2(
-                next_states, next_uncertainties, next_actions.to(self.device), N=batch_size)
+                next_states, next_conv_stacks, next_actions.to(self.device), N=batch_size)
             next_q_target = torch.min(
                 next_q1, next_q2) - self.alpha * next_log_pi
             expected_q = rewards + (1 - dones) * self.gamma * next_q_target
 
             # q loss
             curr_q1 = self.q_net1.forward(
-                states, uncertainties, actions, N=batch_size)
+                states, conv_stacks, actions, N=batch_size)
             curr_q2 = self.q_net2.forward(
-                states, uncertainties, actions, N=batch_size)
+                states, conv_stacks, actions, N=batch_size)
             q1_loss = F.mse_loss(curr_q1, expected_q.detach())
             q2_loss = F.mse_loss(curr_q2, expected_q.detach())
 
@@ -392,13 +393,13 @@ class SACAgent:
 
             # delayed update for policy network and target q networks
             new_actions, log_pi = self.policy_net.sample(
-                states, uncertainties, N=batch_size)
+                states, conv_stacks, N=batch_size)
             if self.update_step % self.delay_step == 0:
                 min_q = torch.min(
                     self.q_net1.forward(
-                        states, uncertainties, actions, N=batch_size),
+                        states, conv_stacks, actions, N=batch_size),
                     self.q_net2.forward(
-                        states, uncertainties, actions, N=batch_size)
+                        states, conv_stacks, actions, N=batch_size)
                 )
                 policy_loss = (self.alpha * log_pi - min_q).mean()
 

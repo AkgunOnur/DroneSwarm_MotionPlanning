@@ -1,7 +1,7 @@
 import gym
 from gym import spaces, error, utils
 from gym.utils import seeding
-# from gym.envs.classic_control import rendering
+from gym.envs.classic_control import rendering
 import numpy as np
 import configparser
 from os import path
@@ -78,7 +78,7 @@ class QuadrotorFormation(gym.Env):
         # Select if waypoint time is used, or if average speed is used to calculate waypoint time   (0: waypoint time,   1: average speed)
         self.trajSelect[2] = 1
 
-        self.v_average = 1.0
+        self.v_average = 0.75
         self.period_denum = 1.0
         self.dtau = 1e-3
 
@@ -103,13 +103,13 @@ class QuadrotorFormation(gym.Env):
         # intitialize grid information
         self.x_lim = 20  # grid x limit
         self.y_lim = 20  # grid y limit
-        self.z_lim = 15  # grid z limit
+        self.z_lim = 6  # grid z limit
         self.res = 1.0  # resolution for grids
-        self.out_shape = 164  # width and height for uncertainty matrix
+        self.out_shape = 82  # width and height for uncertainty matrix
         self.dist = 5.0  # distance threshold
 
         X, Y, Z = np.mgrid[-self.x_lim:self.x_lim + 0.1:self.res, -
-                           self.y_lim:self.y_lim + 0.1:self.res, 0:self.z_lim + 0.1:self.res]
+                           self.y_lim:self.y_lim + 0.1:self.res, 0:self.z_lim + 0.1:2*self.res]
         self.uncertainty_grids = np.vstack(
             (X.flatten(), Y.flatten(), Z.flatten())).T
         #self.uncertainty_values = np.ones((self.uncertainty_grids.shape[0], ))
@@ -250,8 +250,8 @@ class QuadrotorFormation(gym.Env):
                             state_difference = self.quadrotors[i].state - self.quadrotors[j].state
                             drone_distance = np.sqrt(state_difference[0]**2 + state_difference[1]**2 + state_difference[2]**2)
                             if drone_distance < min_distance:
-                                reward_list[i] = -1e4
-                                done = True
+                                reward_list[i] = -1e3
+                                # done = True
                             elif drone_distance <= max_distance:
                                 reward_list[i] -= 100
 

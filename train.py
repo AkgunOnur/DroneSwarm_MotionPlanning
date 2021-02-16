@@ -19,6 +19,7 @@ from point_mass_formation import QuadrotorFormation
 import os
 import datetime
 import warnings
+from time import sleep
 warnings.filterwarnings("ignore")
 #######################
 
@@ -29,14 +30,14 @@ if not os.path.exists("./models"):
 # env_name = "Walker2DBulletEnv-v0"
 # env = gym.make(env_name)
 def main():
-    n_agents = 3
+    n_agents = 2
     N_episodes = 20000
     N_iteration = 250
     train_episode_modulo = 5
-    batch_size = 256
+    batch_size = 50
     
 
-    env = QuadrotorFormation(n_agents=n_agents, visualization=False)
+    env = QuadrotorFormation(n_agents=n_agents, visualization=True)
     plotting_rew = []
     mean_reward_pr = -np.Inf
 
@@ -57,9 +58,9 @@ def main():
     p_lr = 1e-3
     buffer_maxlen = 1_000_000
 
-    seed = 0
-    torch.manual_seed(seed)
-    np.random.seed(seed)
+    # seed = 0
+    # torch.manual_seed(seed)
+    # np.random.seed(seed)
     # env.seed(seed)
 
     policy_list = []
@@ -82,9 +83,9 @@ def main():
 
             action_list = []
             ref_pos = np.zeros((n_agents, 3))
-            drone_state, uncertainty_mat = agent_obs
+            drone_state, conv_stack = agent_obs
             for i in range(n_agents):
-                action = policy_list[i].get_action(drone_state[i,:].reshape(1,-1), uncertainty_mat)
+                action = policy_list[i].get_action(drone_state[i,:].reshape(1,-1), conv_stack)
                 action_list.append(action)
                 # print("Action X: {0:.4}, Y: {1:.4}, Z: {2:.4}".format(action[0], action[1], action[2]))
                     
@@ -99,28 +100,33 @@ def main():
             agent_new_obs, reward_list, done, _ = env.step(ref_pos)
             reward_over_eps.append(reward_list)
 
-            drone_new_state, new_uncertainty_mat = agent_new_obs
+            drone_new_state, new_conv_stack = agent_new_obs
 
             for i in range(n_agents):
                 policy = policy_list[i]
                 for j in range(n_agents):
                     policy.replay_buffer.add(
-                        (drone_state[j,:].reshape(1,-1), uncertainty_mat), action_list[j], reward_list[j], (drone_new_state[j,:].reshape(1,-1), new_uncertainty_mat), done)
+                        (drone_state[j,:].reshape(1,-1), conv_stack), action_list[j], reward_list[j], (drone_new_state[j,:].reshape(1,-1), new_conv_stack), done)
 
             agent_obs = agent_new_obs
 
             if done:
                 break
 
+        
         # Used to determine when the environment is solved.
         mean_reward = np.mean(reward_over_eps)
         if(episode % train_episode_modulo == 0):
             for i in range(n_agents):
-                policy_list[i].train(5, batch_size)
+                policy_list[i].train(10, batch_size)
 
         if episode % 1 == 0:
             print('Episode {}\tIteration: {:5d}\tAverage reward over episode: {:.2f}'.format(
                 episode, time, mean_reward))
+
+        if env.visualization:
+            sleep(2.0)
+            env.viewer.close()
 
         if mean_reward > mean_reward_pr:
             mean_reward_pr = mean_reward

@@ -81,7 +81,7 @@ class QuadrotorFormation(gym.Env):
 
         # intitialize state matrices
         self.total_states = np.zeros((self.n_agents, self.nx_system))
-        self.agent_features = np.zeros((self.n_agents, self.n_action + (self.n_agents - 1)))
+        self.agent_features = np.zeros((self.n_agents, self.n_action + 3*(self.n_agents - 1)))
         self.diff_target = np.zeros((self.n_agents, self.n_action))
 
         self.a_net = np.zeros((self.n_agents, self.n_agents))
@@ -97,13 +97,13 @@ class QuadrotorFormation(gym.Env):
         # intitialize grid information
         self.x_lim = 20  # grid x limit
         self.y_lim = 20  # grid y limit
-        self.z_lim = 15  # grid z limit
+        self.z_lim = 6  # grid z limit
         self.res = 1.0  # resolution for grids
-        self.out_shape = 164  # width and height for uncertainty matrix
+        self.out_shape = 82  # width and height for uncertainty matrix
         self.dist = 5.0  # distance threshold
 
         X, Y, Z = np.mgrid[-self.x_lim:self.x_lim + 0.1:self.res, -
-                           self.y_lim:self.y_lim + 0.1:self.res, 0:self.z_lim + 0.1:self.res]
+                           self.y_lim:self.y_lim + 0.1:self.res, 0:self.z_lim + 0.1:2*self.res]
         self.uncertainty_grids = np.vstack(
             (X.flatten(), Y.flatten(), Z.flatten())).T
         #self.uncertainty_values = np.ones((self.uncertainty_grids.shape[0], ))
@@ -125,7 +125,7 @@ class QuadrotorFormation(gym.Env):
         self.fail_check = np.zeros(self.n_agents)
         max_distance = 5.0
         min_distance = 0.5
-        alpha = 0.1
+        alpha = 0.25
         done = False
         traj_list = []
         drone_crash = False
@@ -149,24 +149,29 @@ class QuadrotorFormation(gym.Env):
             yawf = 0.
             psid = 0.
 
-            N_iter = 300
+            N_iter = 400
 
             xd_list = np.linspace(self.quadrotors[i].state[0], xd, num=N_iter) 
             yd_list = np.linspace(self.quadrotors[i].state[1], yd, num=N_iter) 
             zd_list = np.linspace(self.quadrotors[i].state[2], zd, num=N_iter) 
             psid_list = np.linspace(self.quadrotors[i].state[5], psid, num=N_iter) 
 
+            prev_xd_dot = 0
+            prev_yd_dot = 0
+            prev_zd_dot = 0
+
             for k in range(N_iter):
-                xd_dot = xd_list[k] - self.quadrotors[i].state[0]
-                yd_dot = yd_list[k] - self.quadrotors[i].state[1]
-                zd_dot = zd_list[k] - self.quadrotors[i].state[2]
+                prev_k = np.clip(k-1, 0, N_iter-1)
+                xd_dot = xd_list[k] - xd_list[prev_k]#self.quadrotors[i].state[0]
+                yd_dot = yd_list[k] - yd_list[prev_k]#self.quadrotors[i].state[1]
+                zd_dot = zd_list[k] - zd_list[prev_k]#self.quadrotors[i].state[2]
                 self.xd_dot = alpha*xd_dot + (1-alpha)*self.xd_dot
                 self.yd_dot = alpha*yd_dot + (1-alpha)*self.yd_dot
                 self.zd_dot = alpha*zd_dot + (1-alpha)*self.zd_dot
 
-                xd_dotdot = self.xd_dot - self.quadrotors[i].state[3]
-                yd_dotdot = self.yd_dot - self.quadrotors[i].state[4]
-                zd_dotdot = self.zd_dot - self.quadrotors[i].state[5]
+                xd_dotdot = self.xd_dot - prev_xd_dot#self.quadrotors[i].state[3]
+                yd_dotdot = self.yd_dot - prev_yd_dot#self.quadrotors[i].state[4]
+                zd_dotdot = self.zd_dot - prev_zd_dot#self.quadrotors[i].state[5]
                 self.xd_dotdot = alpha*xd_dotdot + (1-alpha)*self.xd_dotdot
                 self.yd_dotdot = alpha*yd_dotdot + (1-alpha)*self.yd_dotdot
                 self.zd_dotdot = alpha*zd_dotdot + (1-alpha)*self.zd_dotdot
@@ -181,13 +186,15 @@ class QuadrotorFormation(gym.Env):
                 self.fail_check[i] = self.quadrotors[i].simulate(current_traj)
 
                 if self.fail_check[i]:
-                    print("Drone {0} has crashed!".format(i))
+                    print("Drone {0} has crashed!".format(i+1))
                     done = True
                     reward_list[i] = -1e4
                     break
 
                 current_pos = [self.quadrotors[i].state[0],
                                 self.quadrotors[i].state[1], self.quadrotors[i].state[2]]
+
+                prev_xd_dot, prev_yd_dot, prev_zd_dot = self.xd_dot, self.yd_dot, self.zd_dot
 
                 reward_list[i] -= 0.025
 
@@ -245,13 +252,12 @@ class QuadrotorFormation(gym.Env):
 
             cnt = 3
             for j in range(self.n_agents):
-                if i != j:
-                    distance = np.sqrt((self.quadrotors[i].state[0] - self.quadrotors[j].state[0])**2 + 
-                                       (self.quadrotors[i].state[1] - self.quadrotors[j].state[1])**2 +
-                                       (self.quadrotors[i].state[2] - self.quadrotors[j].state[2])**2) / 32.0
-                    
-                    self.agent_features[i,cnt] = distance
-                    cnt += 1
+                if i != j:                    
+                    self.agent_features[i,cnt] = (self.quadrotors[i].state[0] - self.quadrotors[j].state[0]) / self.x_lim
+                    self.agent_features[i,cnt+1] = (self.quadrotors[i].state[1] - self.quadrotors[j].state[1]) / self.y_lim
+                    self.agent_features[i,cnt+2] = (self.quadrotors[i].state[2] - self.quadrotors[j].state[2]) / self.z_lim
+
+                    cnt += 3
 
 
         uncertainty_mat = np.reshape(self.uncertainty_values, (1, 1, self.out_shape, self.out_shape))
@@ -260,7 +266,7 @@ class QuadrotorFormation(gym.Env):
 
     def reset(self):
         x = np.zeros((self.n_agents, 2 * self.n_action))
-        self.agent_features = np.zeros((self.n_agents, self.n_action + (self.n_agents - 1)))
+        self.agent_features = np.zeros((self.n_agents, self.n_action + 3*(self.n_agents - 1)))
         self.quadrotors = []
         self.uncertainty_values = uniform(low=0.95, high=1.0, size=(self.uncertainty_grids.shape[0],))
         self.grid_visits = np.zeros((self.uncertainty_grids.shape[0], ))
