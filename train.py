@@ -31,13 +31,13 @@ if not os.path.exists("./models"):
 # env = gym.make(env_name)
 def main():
     n_agents = 2
-    N_episodes = 20000
+    N_episodes = 50000
     N_iteration = 250
-    train_episode_modulo = 5
-    batch_size = 50
+    train_episode_modulo = 10
+    batch_size = 256
     
 
-    env = QuadrotorFormation(n_agents=n_agents, visualization=True)
+    env = QuadrotorFormation(n_agents=n_agents, visualization=False)
     plotting_rew = []
     mean_reward_pr = -np.Inf
 
@@ -118,7 +118,7 @@ def main():
         mean_reward = np.mean(reward_over_eps)
         if(episode % train_episode_modulo == 0):
             for i in range(n_agents):
-                policy_list[i].train(10, batch_size)
+                policy_list[i].train(5, batch_size)
 
         if episode % 1 == 0:
             print('Episode {}\tIteration: {:5d}\tAverage reward over episode: {:.2f}'.format(
@@ -132,7 +132,7 @@ def main():
             mean_reward_pr = mean_reward
             for i in range(n_agents):
                 policy_list[i].save_checkpoint('models/best_actor_' + str(i+1), 'models/best_critic_' + str(i+1))
-        elif episode % 500 == 0:
+        elif episode % 1000 == 0:
             for i in range(n_agents):
                 policy_list[i].save_checkpoint('models/actor_' + str(i+1) + '_' + str(episode), 'models/critic_' + str(i+1) + '_' + str(episode))
 

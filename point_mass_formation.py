@@ -1,8 +1,7 @@
 import gym
 from gym import spaces, error, utils
 from gym.utils import seeding
-from gym.envs.classic_control import rendering
-from pyglet.gl import *
+# from gym.envs.classic_control import rendering
 import numpy as np
 import configparser
 from os import path
@@ -170,7 +169,7 @@ class QuadrotorFormation(gym.Env):
                     indices = distances < self.dist
                     sorted_drone_indices = sorted(range(len(distances)), key=lambda k: distances[k])
 
-                    if self.check_collision(sorted_drone_indices[0:self.N_closest_grid]): # just check the nearest 4 grids to the drone, whether it collides with the obstacle
+                    if self.check_collision(sorted_drone_indices[0:self.N_closest_grid // 2]): # just check the nearest 2 grids to the drone, whether it collides with the obstacle
                         print ("Agent {} has collided with the obstacle!".format(i+1))
                         reward_list[i] = -1e4
                         done = True
@@ -317,9 +316,9 @@ class QuadrotorFormation(gym.Env):
         
 
         for i in range(0, self.n_agents):
-            x_start = uniform(low=-self.x_lim*0.8, high=self.x_lim*0.8)
-            y_start = uniform(low=-self.y_lim*0.8, high=self.y_lim*0.8)
-            z_start = uniform(low=0.0, high=self.z_lim*0.8)
+            x_start = uniform(low=-self.x_lim, high=self.x_lim)
+            y_start = uniform(low=-self.y_lim, high=self.y_lim)
+            z_start = uniform(low=0.0, high=self.z_lim)
             pos_start[i,:] = [x_start, y_start, z_start]
 
             state0 = [x_start, y_start, z_start,
