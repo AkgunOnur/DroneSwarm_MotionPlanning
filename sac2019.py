@@ -88,7 +88,7 @@ class SoftQNetwork(nn.Module):
         # self.linear3.bias.data.uniform_(-init_w, init_w)
 
         self.conv_net = nn.Sequential(
-            nn.Conv2d(4, 3, 3, 2),        
+            nn.Conv2d(n_agents+2, 3, 3, 2),        
             nn.BatchNorm2d(3),           
             nn.ReLU(),
             nn.AvgPool2d(2, stride=2),  
@@ -155,7 +155,7 @@ class PolicyNetwork(nn.Module):
         # self.log_std_linear.bias.data.uniform_(-init_w, init_w)
 
         self.conv_net = nn.Sequential(
-            nn.Conv2d(4, 3, 3, 2),        
+            nn.Conv2d(n_agents+2, 3, 3, 2),        
             nn.BatchNorm2d(3),           
             nn.ReLU(),
             nn.AvgPool2d(2, stride=2),  

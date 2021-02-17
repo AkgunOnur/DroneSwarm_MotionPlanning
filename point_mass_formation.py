@@ -86,10 +86,10 @@ class QuadrotorFormation(gym.Env):
 
         self.a_net = np.zeros((self.n_agents, self.n_agents))
 
-        self.max_action = 20.0
+        self.max_action = 2.0
         self.gain = 1.0  # TODO - adjust if necessary - may help the NN performance
         self.action_space = spaces.Box(low=-self.max_action, high=self.max_action, shape=(
-            self.n_action * self.n_agents,), dtype=np.float32)
+            self.n_action,), dtype=np.float32)
 
         self.observation_space = spaces.Box(low=-np.Inf, high=np.Inf, shape=(self.n_agents, self.n_features),
                                             dtype=np.float32)

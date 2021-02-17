@@ -35,6 +35,7 @@ def main():
     N_iteration = 250
     train_episode_modulo = 10
     batch_size = 256
+    exploration_episode = 200
     
 
     env = QuadrotorFormation(n_agents=n_agents, visualization=False)
@@ -42,8 +43,6 @@ def main():
     mean_reward_pr = -np.Inf
 
     start_timesteps = 10_000
-    eval_freq = 5_000
-    max_timesteps = 500_000
 
     total_timesteps = 0
     episode_reward = 0
@@ -74,18 +73,26 @@ def main():
     for episode in range(1, N_episodes+1):
         reward_over_eps = []
         agent_obs, pos_target = env.reset()
+
+        if episode <= exploration_episode:
+            exploration_mode = True
+        else:
+            exploration_mode = False
+
         for time in range(1, N_iteration+1):
-            # if total_timesteps < start_timesteps:
-            #     action = env.action_space.sample()
-            # else:
             print("\n Episode: {0}/{2}, Iteration: {1}/{3}".format(
                 episode, time, N_episodes, N_iteration))
-
             action_list = []
+
             ref_pos = np.zeros((n_agents, 3))
             drone_state, conv_stack = agent_obs
+
             for i in range(n_agents):
-                action = policy_list[i].get_action(drone_state[i,:].reshape(1,-1), conv_stack)
+                if exploration_mode:
+                    action = env.action_space.sample()
+                else:
+                    action = policy_list[i].get_action(drone_state[i,:].reshape(1,-1), conv_stack)
+
                 action_list.append(action)
                 # print("Action X: {0:.4}, Y: {1:.4}, Z: {2:.4}".format(action[0], action[1], action[2]))
                     
