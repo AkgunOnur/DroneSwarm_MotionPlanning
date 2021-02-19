@@ -1,7 +1,7 @@
 import gym
 from gym import spaces, error, utils
 from gym.utils import seeding
-# from gym.envs.classic_control import rendering
+from gym.envs.classic_control import rendering
 import numpy as np
 import configparser
 from os import path
