@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import os
 import numpy as np
 import torch
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 
 from sac_discrete.memory import LazyMultiStepMemory, LazyPrioritizedMultiStepMemory
 from sac_discrete.utils import update_params, RunningMeanStats
@@ -54,7 +54,7 @@ class BaseAgent(ABC):
         if not os.path.exists(self.summary_dir):
             os.makedirs(self.summary_dir)
 
-        self.writer = SummaryWriter(log_dir=self.summary_dir)
+        # self.writer = SummaryWriter(log_dir=self.summary_dir)
         self.train_return = RunningMeanStats(log_interval)
 
         self.learning_steps = 0
@@ -110,12 +110,12 @@ class BaseAgent(ABC):
         pass
 
     def train_episode(self):
-        episode_return = 0.
-
-        done = False
-        agent_obs = self.env.reset()
-
+        
         for episode in range(self.max_episode_steps):
+            episode_return = 0.
+            agent_obs = self.env.reset()
+            done = False
+
             for iteration in range(self.max_iteration_steps):
 
                 if episode < self.start_steps :
@@ -148,12 +148,11 @@ class BaseAgent(ABC):
             # We log running mean of training rewards.
             self.train_return.append(episode_return)
 
-            if episode % self.log_interval == 0:
-                self.writer.add_scalar(
-                    'reward/train', self.train_return.get(), episode)
+            # if episode % self.log_interval == 0:
+            #     self.writer.add_scalar(
+            #         'reward/train', self.train_return.get(), episode)
 
             print(f'Episode: {episode:<4}  '
-                f'Episode steps: {episode:<4}  '
                 f'Return: {episode_return:<5.1f}')
 
     def learn(self):
@@ -184,33 +183,31 @@ class BaseAgent(ABC):
         if self.use_per:
             self.memory.update_priority(errors)
 
-        if self.learning_steps % self.log_interval == 0:
-            self.writer.add_scalar(
-                'loss/Q1', q1_loss.detach().item(),
-                self.learning_steps)
-            self.writer.add_scalar(
-                'loss/Q2', q2_loss.detach().item(),
-                self.learning_steps)
-            self.writer.add_scalar(
-                'loss/policy', policy_loss.detach().item(),
-                self.learning_steps)
-            self.writer.add_scalar(
-                'loss/alpha', entropy_loss.detach().item(),
-                self.learning_steps)
-            self.writer.add_scalar(
-                'stats/alpha', self.alpha.detach().item(),
-                self.learning_steps)
-            self.writer.add_scalar(
-                'stats/mean_Q1', mean_q1, self.learning_steps)
-            self.writer.add_scalar(
-                'stats/mean_Q2', mean_q2, self.learning_steps)
-            self.writer.add_scalar(
-                'stats/entropy', entropies.detach().mean().item(),
-                self.learning_steps)
+        # if self.learning_steps % self.log_interval == 0:
+        #     self.writer.add_scalar(
+        #         'loss/Q1', q1_loss.detach().item(),
+        #         self.learning_steps)
+        #     self.writer.add_scalar(
+        #         'loss/Q2', q2_loss.detach().item(),
+        #         self.learning_steps)
+        #     self.writer.add_scalar(
+        #         'loss/policy', policy_loss.detach().item(),
+        #         self.learning_steps)
+        #     self.writer.add_scalar(
+        #         'loss/alpha', entropy_loss.detach().item(),
+        #         self.learning_steps)
+        #     self.writer.add_scalar(
+        #         'stats/alpha', self.alpha.detach().item(),
+        #         self.learning_steps)
+        #     self.writer.add_scalar(
+        #         'stats/mean_Q1', mean_q1, self.learning_steps)
+        #     self.writer.add_scalar(
+        #         'stats/mean_Q2', mean_q2, self.learning_steps)
+        #     self.writer.add_scalar(
+        #         'stats/entropy', entropies.detach().mean().item(),
+        #         self.learning_steps)
 
-    def evaluate(self):
-        total_return = 0.0
-        
+    def evaluate(self):        
         agent_obs = self.env.reset()
         iteration_steps = 1
         episode_return = 0.0
@@ -223,18 +220,15 @@ class BaseAgent(ABC):
             episode_return += reward
             agent_obs = next_agent_obs
 
-        total_return += episode_return
-
-        mean_return = total_return
-
-        if mean_return > self.best_eval_score:
-            self.best_eval_score = mean_return
+        if episode_return > self.best_eval_score:
+            self.best_eval_score = episode_return
             self.save_models(os.path.join(self.model_dir, 'best'))
+            print(f'Evaluation mode - Better reward: {episode_return:<5.1f}')
 
         # self.writer.add_scalar(
-        #     'reward/test', mean_return)
+        #     'reward/test', episode_return)
         # print('-' * 60)
-        # print(f'return: {mean_return:<5.1f}')
+        # print(f'return: {episode_return:<5.1f}')
         # print('-' * 60)
 
     @abstractmethod

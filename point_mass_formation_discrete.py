@@ -1,7 +1,7 @@
 import gym
 from gym import spaces, error, utils
 from gym.utils import seeding
-from gym.envs.classic_control import rendering
+# from gym.envs.classic_control import rendering
 import numpy as np
 import configparser
 from os import path
@@ -110,7 +110,7 @@ class QuadrotorFormation(gym.Env):
             if self.check_collision(explored_indices[0:self.N_closest_grid]): # just check the nearest 4 grids to the drone, whether it collides with the obstacle
                 # print ("drone_prev_state: ", drone_prev_state)
                 # print ("drone_current_state: ", drone_current_state)
-                print ("Agent {} has collided with the obstacle!".format(agent_ind+1))
+                # print ("Agent {} has collided with the obstacle!".format(agent_ind+1))
                 obstacle_collision[agent_ind] = 1
                 reward_list[agent_ind] = -50.0
                 self.quadrotors[agent_ind].state = np.copy(drone_prev_state)
@@ -147,10 +147,9 @@ class QuadrotorFormation(gym.Env):
                         state_difference = self.quadrotors[agent_ind].state - self.quadrotors[agent_other_ind].state
                         drone_distance = np.sqrt(state_difference[0]**2 + state_difference[1]**2 + state_difference[2]**2)
                         if drone_distance < min_distance:
-                            print ("state_difference: ", state_difference)
                             reward_list[agent_ind] = -50.0
                             reward_list[agent_other_ind] = -50.0
-                            print ("Agent {} and {} has collided with each other!".format(agent_ind+1, agent_other_ind+1))
+                            # print ("Agent {} and {} has collided with each other!".format(agent_ind+1, agent_other_ind+1))
                         elif drone_distance <= max_distance:
                             reward_list[agent_ind] -= 10
                         

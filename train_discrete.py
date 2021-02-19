@@ -19,7 +19,7 @@ def main():
     seed = 25
 
     # Create environments.
-    env = QuadrotorFormation(n_agents=n_agents, N_frame=N_frame, visualization=True)
+    env = QuadrotorFormation(n_agents=n_agents, N_frame=N_frame, visualization=False)
 
     # Create the agent.
     Agent = SacdAgent
