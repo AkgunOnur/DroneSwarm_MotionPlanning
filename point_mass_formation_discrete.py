@@ -90,12 +90,16 @@ class QuadrotorFormation(gym.Env):
         done = False
         reward_list = np.zeros(self.n_agents)
         neighbour_grids = 27
+        uncertainty_limit = 0.25
         obstacle_collision = np.zeros(self.n_agents)
         total_explored_indices = []
         for i in range(self.n_agents):
             total_explored_indices.append([])
 
-        agents_actions = self.action_list[action]
+        if self.is_centralized:
+            agents_actions = self.action_list[action]
+        else:
+            agents_actions = np.reshape(action, (self.n_agents,))
         
         drone_current_pos = np.array([[self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2]] for i in range(self.n_agents)])    
         drone_init_pos = np.copy(drone_current_pos)    
@@ -126,18 +130,18 @@ class QuadrotorFormation(gym.Env):
                 continue
             else:
                 indices = total_explored_indices[agent_ind]
-                # indices = [1500, 1400, 1300]
-                # obstacle_indices = [1200, 1250, 1300]
+                # exclude the indices of obstacles from the list of visited indices
                 to_be_updated_indices = np.setdiff1d(indices, self.obstacle_indices)
 
                 self.grid_visits[to_be_updated_indices] += 1
                 self.uncertainty_values[to_be_updated_indices] = np.clip(
                     np.exp(-self.grid_visits[to_be_updated_indices]/3), 1e-6, 1.0)
 
-                low_uncertainty_indices = np.where(self.uncertainty_values < 0.25)[0]
+                low_uncertainty_indices = np.where(self.uncertainty_values < uncertainty_limit)[0]
             
+                # find the visited grids that have low uncertainty values
                 overexplored_indices =  np.intersect1d(low_uncertainty_indices, to_be_updated_indices)
-                if np.sum(overexplored_indices) > 0:
+                if len(overexplored_indices) > 0:
                     neg_reward = np.sum(np.clip(np.exp(self.grid_visits[overexplored_indices] / 8), 0, 1e2))
                     reward_list[agent_ind] -= neg_reward
 
@@ -152,6 +156,7 @@ class QuadrotorFormation(gym.Env):
                             # print ("Agent {} and {} has collided with each other!".format(agent_ind+1, agent_other_ind+1))
                         elif drone_distance <= max_distance:
                             reward_list[agent_ind] -= 10
+                            reward_list[agent_other_ind] -= 10
                         
                         
 
@@ -176,12 +181,14 @@ class QuadrotorFormation(gym.Env):
             # if done: # If all agents reaches their targets or any of them fails to do it
             #     break 
         
+        if self.is_centralized:
+            return self.get_observation(), reward_list.sum(), done, {}
+        else:
+            return self.get_observation(), reward_list, done, {}
 
-        return self.get_observation(), reward_list.sum(), done, {}
+        
 
     def get_observation(self):
-        conv_stack = np.zeros((self.N_frame*(self.n_agents+1)+1, self.out_shape, self.out_shape))
-
         # conv_stack(batch,4,84,84) input_channel = 4
         # conv_stack(batch,16,84,84) = 5*agent1_pos + 5*agent2_pos + 5*uncertainty_grid + 1*obstacle_grid  
         # conv_stack(batch,5,4,84,84)
@@ -194,6 +201,8 @@ class QuadrotorFormation(gym.Env):
         if self.iteration % self.frame_update_iter == 0:
             self.uncertainty_stacks.append(uncertainty_map)
 
+        
+        conv_stack = np.zeros((self.N_frame*(self.n_agents+1)+1, self.out_shape, self.out_shape))
         for frame_ind in range(self.N_frame):
             for agent_ind in range(self.n_agents):
                 # agent_ind = 0, 0 1 2 3 4
@@ -206,6 +215,7 @@ class QuadrotorFormation(gym.Env):
         conv_stack[-1,:,:] = self.obstacles_stack
 
         return conv_stack
+
 
     def reset(self):
         self.quadrotors = []
@@ -273,7 +283,7 @@ class QuadrotorFormation(gym.Env):
 
             for j in range(self.N_frame):
                 self.agents_stacks[agent_ind].append(drone_stack)
-                self.uncertainty_stacks.append(uncertainty_map)
+                # self.uncertainty_stacks.append(uncertainty_map)
                 
 
 

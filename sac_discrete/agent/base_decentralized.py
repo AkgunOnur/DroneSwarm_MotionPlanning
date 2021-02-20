@@ -8,9 +8,9 @@ from sac_discrete.memory import LazyMultiStepMemory, LazyPrioritizedMultiStepMem
 from sac_discrete.utils import update_params, RunningMeanStats
 
 
-class BaseAgent(ABC):
+class BaseAgent_Decentralized(ABC):
 
-    def __init__(self, env, num_steps=100000, batch_size=128,
+    def __init__(self, env, n_agents=2, num_steps=100000, batch_size=128,
                  memory_size=1000000, gamma=0.99, multi_step=1,
                  target_entropy_ratio=0.98, start_steps=200,
                  update_interval=4, target_update_interval=5,
@@ -19,6 +19,7 @@ class BaseAgent(ABC):
         super().__init__()
 
         self.env = env
+        self.n_agents = n_agents
         agent_obs_shape = (self.env.N_frame*(self.env.n_agents+1)+1, self.env.out_shape, self.env.out_shape)
 
         # Set seed.
@@ -38,29 +39,28 @@ class BaseAgent(ABC):
         # LazyMemory efficiently stores FrameStacked states.
         if use_per:
             beta_steps = (num_steps - start_steps) / update_interval
-            self.memory = LazyPrioritizedMultiStepMemory(
+            self.memory = [LazyPrioritizedMultiStepMemory(
                 capacity=memory_size,
                 state_shape=agent_obs_shape,
                 device=self.device, gamma=gamma, multi_step=multi_step,
-                beta_steps=beta_steps)
+                beta_steps=beta_steps) for i in range(self.n_agents)]
         else:
-            self.memory = LazyMultiStepMemory(
+            self.memory = [ LazyMultiStepMemory(
                 capacity=memory_size,
                 state_shape=agent_obs_shape,
-                device=self.device, gamma=gamma, multi_step=multi_step)
+                device=self.device, gamma=gamma, multi_step=multi_step) for i in range(self.n_agents)]
 
-        self.model_dir = './models'
-        self.summary_dir = './summary'
+        self.model_dir = '/okyanus/users/deepdrone/Independent_DroneSwarm/DroneSwarm_MotionPlanning/models'
+        self.summary_dir = '/okyanus/users/deepdrone/Independent_DroneSwarm/DroneSwarm_MotionPlanning/summary'
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
         if not os.path.exists(self.summary_dir):
             os.makedirs(self.summary_dir)
 
         # self.writer = SummaryWriter(log_dir=self.summary_dir)
-        self.train_return = RunningMeanStats(log_interval)
 
         self.learning_steps = 0
-        self.best_eval_score = -np.inf
+        self.best_eval_score = [-np.inf for i in range(self.n_agents)]
         self.num_steps = num_steps
         self.batch_size = batch_size
         self.gamma_n = gamma ** multi_step
@@ -80,11 +80,11 @@ class BaseAgent(ABC):
             and episode >= self.start_steps
 
     @abstractmethod
-    def explore(self, state, device):
+    def explore(self, agent_ind, state, device):
         pass
 
     @abstractmethod
-    def exploit(self, state, device):
+    def exploit(self, agent_ind, state, device):
         pass
 
     @abstractmethod
@@ -114,16 +114,17 @@ class BaseAgent(ABC):
     def train_episode(self):
         
         for episode in range(self.max_episode_steps):
-            episode_return = 0.
+            episode_return = [0. for i in range(self.n_agents)]
             agent_obs = self.env.reset()
             done = False
 
             for iteration in range(self.max_iteration_steps):
-
-                if episode < self.start_steps :
-                    action = self.env.action_space.sample()
-                else:
-                    action = self.explore(agent_obs, self.device)
+                action = np.zeros(self.n_agents)
+                for agent_ind in range(self.n_agents):
+                    if episode < self.start_steps:
+                        action[agent_ind] = self.env.action_space.sample()
+                    else:
+                        action[agent_ind] = self.explore(agent_ind, agent_obs, self.device)
 
                 next_agent_obs, reward, done, _ = self.env.step(action, iteration)
 
@@ -131,9 +132,10 @@ class BaseAgent(ABC):
                 # clipped_reward = max(min(reward, 1.0), -1.0)
 
                 # To calculate efficiently, set priority=max_priority here.
-                self.memory.append(agent_obs, action, reward, next_agent_obs, done)
+                for agent_ind in range(self.n_agents):
+                    self.memory[agent_ind].append(agent_obs, action[agent_ind], reward[agent_ind], next_agent_obs, done)
+                    episode_return[agent_ind] += reward[agent_ind]
 
-                episode_return += reward
                 agent_obs = next_agent_obs
 
 
@@ -145,47 +147,47 @@ class BaseAgent(ABC):
 
             if episode % self.eval_interval == 0 and episode >= self.start_steps:
                 self.evaluate()
-                self.save_models(os.path.join(self.model_dir, 'final'))
+                for agent_ind in range(self.n_agents):
+                    self.save_models(os.path.join(self.model_dir, 'final'), agent_ind)
 
-            # We log running mean of training rewards.
-            self.train_return.append(episode_return)
 
-            print(f'Episode: {episode:<4}  '
-                f'Return: {episode_return:<5.1f}')
+            print(f'Episode: {episode:<5}  '
+                f'Return 1: {episode_return[0]:<5.1f}  '
+                f'Return 2: {episode_return[1]:<5.1f}')
 
     def learn(self):
         assert hasattr(self, 'q1_optim') and hasattr(self, 'q2_optim') and\
             hasattr(self, 'policy_optim') and hasattr(self, 'alpha_optim')
 
         self.learning_steps += 1
+        for agent_ind in range(self.n_agents):
 
-        if self.use_per:
-            batch, weights = self.memory.sample(self.batch_size)
-        else:
-            batch = self.memory.sample(self.batch_size)
-            # Set priority weights to 1 when we don't use PER.
-            weights = 1.
+            if self.use_per:
+                batch, weights = self.memory[agent_ind].sample(self.batch_size)
+            else:
+                batch = self.memory[agent_ind].sample(self.batch_size)
+                # Set priority weights to 1 when we don't use PER.
+                weights = 1.
 
-        q1_loss, q2_loss, errors, mean_q1, mean_q2 = \
-            self.calc_critic_loss(batch, weights)
-        policy_loss, entropies = self.calc_policy_loss(batch, weights)
-        entropy_loss = self.calc_entropy_loss(entropies, weights)
+            q1_loss, q2_loss, errors, mean_q1, mean_q2 = \
+                self.calc_critic_loss(batch, weights, agent_ind)
+            policy_loss, entropies = self.calc_policy_loss(batch, weights, agent_ind)
+            entropy_loss = self.calc_entropy_loss(entropies, weights)
 
-        update_params(self.q1_optim, q1_loss)
-        update_params(self.q2_optim, q2_loss)
-        update_params(self.policy_optim, policy_loss)
-        update_params(self.alpha_optim, entropy_loss)
+            update_params(self.q1_optim[agent_ind], q1_loss)
+            update_params(self.q2_optim[agent_ind], q2_loss)
+            update_params(self.policy_optim[agent_ind], policy_loss)
+            update_params(self.alpha_optim[agent_ind], entropy_loss)
 
-        self.alpha = self.log_alpha.exp()
+            self.alpha = self.log_alpha.exp()
 
-        if self.use_per:
-            self.memory.update_priority(errors)
-
+            if self.use_per:
+                self.memory[agent_ind].update_priority(errors)
 
     def evaluate(self):        
         agent_obs = self.env.reset()
         iteration_steps = 1
-        episode_return = 0.0
+        episode_return = np.zeros(self.n_agents)
         done = False
 
         while iteration_steps <= self.max_iteration_steps:
@@ -195,14 +197,17 @@ class BaseAgent(ABC):
             episode_return += reward
             agent_obs = next_agent_obs
 
-        if episode_return > self.best_eval_score:
-            self.best_eval_score = episode_return
-            self.save_models(os.path.join(self.model_dir, 'best'))
-            print(f'Evaluation mode - Better reward: {episode_return:<5.1f}')
+        for agent_ind in range(self.n_agents):
+            if episode_return[agent_ind] > self.best_eval_score[agent_ind]:
+                print ("Better reward obtained for Agent {0}. The reward: {1:.3f}".format(agent_ind+1, episode_return[agent_ind]))
+                self.best_eval_score[agent_ind] = episode_return[agent_ind]
+                self.save_models(os.path.join(self.model_dir, 'best'), agent_ind)
 
+                # print(f'Evaluation Mode'
+                #       f'Return {agent_ind+1:<2}: {episode_return[agent_ind]:<5.1f}  ')
 
     @abstractmethod
-    def save_models(self, save_dir):
+    def save_models(self, save_dir, agent_ind):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 

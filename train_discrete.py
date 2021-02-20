@@ -1,7 +1,10 @@
 import os
 import torch
+import torch.multiprocessing as mp
+
 
 from sac_discrete.agent import SacdAgent, SharedSacdAgent
+from sac_discrete.agent.sacd_decentralized import SacdAgent_Decentralized
 from point_mass_formation_discrete import QuadrotorFormation
 
 
@@ -15,15 +18,22 @@ def main():
     N_frame = 5
     train_episode_modulo = 10
     exploration_episode = 50
-    device = "cpu"
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     seed = 25
+    is_centralized = False
+    visualization = False
+
+    num_processes = 2
 
     # Create environments.
-    env = QuadrotorFormation(n_agents=n_agents, N_frame=N_frame, visualization=False)
+    env = QuadrotorFormation(n_agents=n_agents, N_frame=N_frame, visualization=visualization, is_centralized=is_centralized)
 
     # Create the agent.
-    Agent = SacdAgent
-    agent = Agent(env=env, cuda=device, seed=seed)
+    if is_centralized:
+        agent = SacdAgent(env=env, cuda=device, seed=seed)
+    else:
+        agent = SacdAgent_Decentralized(env=env, cuda=device, seed=seed)
+    
     agent.train_episode()
 
 
