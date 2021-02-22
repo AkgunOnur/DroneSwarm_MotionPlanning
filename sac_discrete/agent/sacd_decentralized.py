@@ -144,8 +144,8 @@ class SacdAgent_Decentralized(BaseAgent_Decentralized):
             * weights)
         return entropy_loss
 
-    def save_models(self, save_dir, agent_ind):
-        super().save_models(save_dir, agent_ind)
-        self.policy[agent_ind].save(os.path.join(save_dir, 'policy_' + str(agent_ind+1) + '.pth'))
-        self.online_critic[agent_ind].save(os.path.join(save_dir, 'online_critic_' + str(agent_ind+1) + '.pth'))
-        self.target_critic[agent_ind].save(os.path.join(save_dir, 'target_critic_' + str(agent_ind+1) + '.pth'))
+    def save_models(self, save_dir, agent_ind, episode_number):
+        super().save_models(save_dir, agent_ind, episode_number)
+        self.policy[agent_ind].save(os.path.join(save_dir, 'policy_' + str(agent_ind+1) + '_' + str(episode_number) +'.pth'))
+        self.online_critic[agent_ind].save(os.path.join(save_dir, 'online_critic_' + str(agent_ind+1) + '_' + str(episode_number) + '.pth'))
+        self.target_critic[agent_ind].save(os.path.join(save_dir, 'target_critic_' + str(agent_ind+1) + '_' + str(episode_number) + '.pth'))

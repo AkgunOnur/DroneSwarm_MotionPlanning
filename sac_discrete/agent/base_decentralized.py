@@ -34,8 +34,6 @@ class BaseAgent_Decentralized(ABC):
         
         # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        self.device = "cpu"
-
         # LazyMemory efficiently stores FrameStacked states.
         if use_per:
             beta_steps = (num_steps - start_steps) / update_interval
@@ -138,6 +136,9 @@ class BaseAgent_Decentralized(ABC):
 
                 agent_obs = next_agent_obs
 
+                if done:
+                    break
+
 
             if self.is_update(episode):
                 self.learn()
@@ -149,9 +150,12 @@ class BaseAgent_Decentralized(ABC):
                 self.evaluate()
                 for agent_ind in range(self.n_agents):
                     self.save_models(os.path.join(self.model_dir, 'final'), agent_ind)
+                    if episode % 2*self.eval_interval == 0:
+                        self.save_models(os.path.join(self.model_dir, 'final'), episode)
 
 
             print(f'Episode: {episode:<5}  '
+                f'Iteration: {iteration:<3}  '
                 f'Return 1: {episode_return[0]:<5.1f}  '
                 f'Return 2: {episode_return[1]:<5.1f}')
 
@@ -201,13 +205,30 @@ class BaseAgent_Decentralized(ABC):
             if episode_return[agent_ind] > self.best_eval_score[agent_ind]:
                 print ("Better reward obtained for Agent {0}. The reward: {1:.3f}".format(agent_ind+1, episode_return[agent_ind]))
                 self.best_eval_score[agent_ind] = episode_return[agent_ind]
-                self.save_models(os.path.join(self.model_dir, 'best'), agent_ind)
+                self.save_models(os.path.join(self.model_dir, 'best'), agent_ind, 1)
 
                 # print(f'Evaluation Mode'
                 #       f'Return {agent_ind+1:<2}: {episode_return[agent_ind]:<5.1f}  ')
 
+    def test_episode(self):        
+        agent_obs = self.env.reset()
+        iteration_steps = 1
+        episode_return = np.zeros(self.n_agents)
+        done = False
+
+        while iteration_steps <= self.max_iteration_steps:
+            action = self.exploit(agent_obs, self.device)
+            next_agent_obs, reward, done, _ = self.env.step(action, iteration_steps)
+            iteration_steps += 1
+            episode_return += reward
+            agent_obs = next_agent_obs
+
+        for agent_ind in range(self.n_agents):
+            print ("Test Mode - For Agent {0}, The reward: {1:.3f}".format(agent_ind+1, episode_return[agent_ind]))
+                
+
     @abstractmethod
-    def save_models(self, save_dir, agent_ind):
+    def save_models(self, save_dir, agent_ind, episode_number):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 

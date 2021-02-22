@@ -11,28 +11,28 @@ from point_mass_formation_discrete import QuadrotorFormation
 
 def main():
     n_agents = 2
-    N_episodes = 50000
-    N_iteration = 250
-    batch_size = 256
     N_train = 5
     N_frame = 5
-    train_episode_modulo = 10
-    exploration_episode = 50
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = "cpu"
     seed = 25
-    is_centralized = False
+    is_centralized = True
     visualization = False
-
-    num_processes = 2
 
     # Create environments.
     env = QuadrotorFormation(n_agents=n_agents, N_frame=N_frame, visualization=visualization, is_centralized=is_centralized)
 
     # Create the agent.
     if is_centralized:
-        agent = SacdAgent(env=env, cuda=device, seed=seed)
+        agent = SacdAgent(env=env, n_agents=n_agents, N_frame=N_frame, batch_size=128,
+                memory_size=150000, start_steps=200,update_interval=4, target_update_interval=12,
+                use_per=True, dueling_net=True, max_episode_steps=100000, eval_interval=500, max_iteration_steps=250, 
+                cuda=device, seed=seed)
     else:
-        agent = SacdAgent_Decentralized(env=env, cuda=device, seed=seed)
+        agent = SacdAgent_Decentralized(env=env, n_agents=n_agents, N_frame=N_frame, batch_size=128,
+                memory_size=150000, start_steps=200,update_interval=4, target_update_interval=12,
+                use_per=True, dueling_net=True, max_episode_steps=100000, eval_interval=500, max_iteration_steps=250, 
+                cuda=device, seed=seed)
     
     agent.train_episode()
 

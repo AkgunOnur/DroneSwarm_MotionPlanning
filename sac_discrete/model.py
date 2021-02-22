@@ -67,18 +67,18 @@ class QNetwork(BaseNetwork):
 
         if not dueling_net:
             self.head = nn.Sequential(
-                nn.Linear(294, 512),
+                nn.Linear(294, 128),
                 nn.ReLU(inplace=True),
-                nn.Linear(512, num_actions))
+                nn.Linear(128, num_actions))
         else:
             self.a_head = nn.Sequential(
-                nn.Linear(294, 512),
+                nn.Linear(294, 128),
                 nn.ReLU(inplace=True),
-                nn.Linear(512, num_actions))
+                nn.Linear(128, num_actions))
             self.v_head = nn.Sequential(
-                nn.Linear(294, 512),
+                nn.Linear(294, 128),
                 nn.ReLU(inplace=True),
-                nn.Linear(512, 1))
+                nn.Linear(128, 1))
 
         self.shared = shared
         self.dueling_net = dueling_net
@@ -116,9 +116,9 @@ class CateoricalPolicy(BaseNetwork):
             self.conv = DQNBase(num_channels)
 
         self.head = nn.Sequential(
-            nn.Linear(294, 512),
+            nn.Linear(294, 128),
             nn.ReLU(inplace=True),
-            nn.Linear(512, num_actions))
+            nn.Linear(128, num_actions))
 
         self.shared = shared
 

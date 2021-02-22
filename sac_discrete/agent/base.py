@@ -11,7 +11,7 @@ from sac_discrete.utils import update_params, RunningMeanStats
 class BaseAgent(ABC):
 
     def __init__(self, env, num_steps=100000, batch_size=128,
-                 memory_size=1000000, gamma=0.99, multi_step=1,
+                 memory_size=100000, gamma=0.99, multi_step=1,
                  target_entropy_ratio=0.98, start_steps=200,
                  update_interval=4, target_update_interval=5,
                  use_per=False, num_eval_steps=125000, max_episode_steps=20000, max_iteration_steps=300,
@@ -33,8 +33,6 @@ class BaseAgent(ABC):
         
         # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        self.device = "cpu"
-
         # LazyMemory efficiently stores FrameStacked states.
         if use_per:
             beta_steps = (num_steps - start_steps) / update_interval
@@ -49,8 +47,8 @@ class BaseAgent(ABC):
                 state_shape=agent_obs_shape,
                 device=self.device, gamma=gamma, multi_step=multi_step)
 
-        self.model_dir = './models'
-        self.summary_dir = './summary'
+        self.model_dir = '/okyanus/users/deepdrone/DroneSwarm_MotionPlanning/models'
+        self.summary_dir = '/okyanus/users/deepdrone/DroneSwarm_MotionPlanning/summary'
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
         if not os.path.exists(self.summary_dir):
@@ -77,7 +75,7 @@ class BaseAgent(ABC):
 
     def is_update(self, episode):
         return episode % self.update_interval == 0\
-            and episode >= self.start_steps
+            and episode >= self.start_steps 
 
     @abstractmethod
     def explore(self, state, device):
@@ -136,6 +134,9 @@ class BaseAgent(ABC):
                 episode_return += reward
                 agent_obs = next_agent_obs
 
+                if done:
+                    break
+
 
             if self.is_update(episode):
                 self.learn()
@@ -145,12 +146,14 @@ class BaseAgent(ABC):
 
             if episode % self.eval_interval == 0 and episode >= self.start_steps:
                 self.evaluate()
-                self.save_models(os.path.join(self.model_dir, 'final'))
+                if episode % 2*self.eval_interval == 0:
+                    self.save_models(os.path.join(self.model_dir, 'final'), episode)
 
             # We log running mean of training rewards.
             self.train_return.append(episode_return)
 
-            print(f'Episode: {episode:<4}  '
+            print(f'Episode: {episode:5}  '
+                f'Iteration: {iteration:<3}  '
                 f'Return: {episode_return:<5.1f}')
 
     def learn(self):
@@ -197,12 +200,28 @@ class BaseAgent(ABC):
 
         if episode_return > self.best_eval_score:
             self.best_eval_score = episode_return
-            self.save_models(os.path.join(self.model_dir, 'best'))
+            self.save_models(os.path.join(self.model_dir, 'best'), 1)
             print(f'Evaluation mode - Better reward: {episode_return:<5.1f}')
 
 
+    def test_episode(self):        
+        agent_obs = self.env.reset()
+        iteration_steps = 1
+        episode_return = 0.0
+        done = False
+
+        while iteration_steps <= self.max_iteration_steps:
+            action = self.exploit(agent_obs, self.device)
+            next_agent_obs, reward, done, _ = self.env.step(action, iteration_steps)
+            iteration_steps += 1
+            episode_return += reward
+            agent_obs = next_agent_obs
+
+        print(f'Test Mode - Episode Reward: {episode_return:<5.1f}')
+
+
     @abstractmethod
-    def save_models(self, save_dir):
+    def save_models(self, save_dir, episode_number):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 

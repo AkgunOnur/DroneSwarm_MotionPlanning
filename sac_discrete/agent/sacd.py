@@ -11,11 +11,11 @@ from sac_discrete.utils import disable_gradients
 class SacdAgent(BaseAgent):
 
     def __init__(self, env, n_agents=2, N_frame=5, num_steps=100000, batch_size=128,
-                 lr=0.0003, memory_size=1000000, gamma=0.99, multi_step=1,
+                 lr=0.0003, memory_size=150000, gamma=0.99, multi_step=1,
                  target_entropy_ratio=0.98, start_steps=200,
-                 update_interval=4, target_update_interval=5,
+                 update_interval=4, target_update_interval=10,
                  use_per=True, dueling_net=True, num_eval_steps=125000,
-                 max_episode_steps=20000, log_interval=10, eval_interval=500, max_iteration_steps=300,
+                 max_episode_steps=100000, log_interval=10, eval_interval=500, max_iteration_steps=250,
                  cuda=True, seed=0):
         super().__init__(
             env, num_steps, batch_size, memory_size, gamma,
@@ -137,8 +137,8 @@ class SacdAgent(BaseAgent):
             * weights)
         return entropy_loss
 
-    def save_models(self, save_dir):
-        super().save_models(save_dir)
-        self.policy.save(os.path.join(save_dir, 'policy.pth'))
-        self.online_critic.save(os.path.join(save_dir, 'online_critic.pth'))
-        self.target_critic.save(os.path.join(save_dir, 'target_critic.pth'))
+    def save_models(self, save_dir, episode_number):
+        super().save_models(save_dir, episode_number)
+        self.policy.save(os.path.join(save_dir, 'policy_' + str(episode_number) + '.pth'))
+        self.online_critic.save(os.path.join(save_dir, 'online_critic_' + str(episode_number) + '.pth'))
+        self.target_critic.save(os.path.join(save_dir, 'target_critic_' + str(episode_number) + '.pth'))
