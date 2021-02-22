@@ -11,7 +11,7 @@ from sac_discrete.utils import disable_gradients
 class SacdAgent_Decentralized(BaseAgent_Decentralized):
 
     def __init__(self, env, n_agents=2, N_frame=5, num_steps=100000, batch_size=128,
-                 lr=0.0003, memory_size=1000000, gamma=0.99, multi_step=1,
+                 lr=0.0003, memory_size=100000, gamma=0.99, multi_step=1,
                  target_entropy_ratio=0.98, start_steps=200,
                  update_interval=4, target_update_interval=5,
                  use_per=True, dueling_net=True, num_eval_steps=125000,
