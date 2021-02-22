@@ -15,8 +15,6 @@ from quadrotor_dynamics import Quadrotor
 from numpy.random import uniform
 from trajectory import Trajectory
 from time import sleep
-from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
-
 
 
 
@@ -28,10 +26,6 @@ font = {'family': 'sans-serif',
 class QuadrotorFormation(gym.Env):
 
     def __init__(self, n_agents=1, visualization=True):
-
-        self.X_list = []
-        self.Y_list = []
-        self.Z_list = []
 
         config_file = path.join(path.dirname(__file__), "formation_flying.cfg")
         config = configparser.ConfigParser()
@@ -78,12 +72,12 @@ class QuadrotorFormation(gym.Env):
         # Select if waypoint time is used, or if average speed is used to calculate waypoint time   (0: waypoint time,   1: average speed)
         self.trajSelect[2] = 1
 
-        self.v_average = 0.75
+        self.v_average = 1.0
         self.period_denum = 1.0
         self.dtau = 1e-3
 
-        self.xdot_d = np.zeros((self.n_agents, 3))
-        self.xdotdot_d = np.zeros((self.n_agents, 3))
+        self.xd_dot, self.yd_dot, self.zd_dot = 0, 0, 0
+        self.xd_dotdot, self.yd_dotdot, self.zd_dotdot = 0, 0, 0
 
         # intitialize state matrices
         self.total_states = np.zeros((self.n_agents, self.nx_system))
@@ -125,16 +119,19 @@ class QuadrotorFormation(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def step(self, ref_pos, agent_pos_dict=None):
+    def step(self, ref_pos):
         #self.nu = 1
         self.agent_targets = np.reshape(ref_pos, (self.n_agents, self.n_action))
         self.fail_check = np.zeros(self.n_agents)
         max_distance = 5.0
         min_distance = 0.5
+        alpha = 0.25
         done = False
         traj_list = []
         drone_crash = False
         reward_list = np.zeros(self.n_agents)
+
+        agent_pos_dict = {}
 
         # self.agent_targets = np.copy(self.agent_pos_goal)
 
@@ -150,84 +147,66 @@ class QuadrotorFormation(gym.Env):
             posf = [xd, yd, zd]
             yaw0 = self.quadrotors[i].state[5]
             yawf = 0.
+            psid = 0.
 
-            time_list = np.hstack((0., 20)).astype(float)
-            waypoint_list = np.vstack((pos0, posf)).astype(float)
-            yaw_list = np.hstack((yaw0, yawf)).astype(float)
+            N_iter = 400
 
-            newTraj = Trajectory(
-                self.trajSelect, self.quadrotors[i].state, time_list, waypoint_list, yaw_list, v_average=self.v_average)
-            Tf = newTraj.t_wps[1]
-            flight_period = Tf / self.period_denum
-            Waypoint_length = flight_period // self.dtau
-            t_list = np.linspace(0, flight_period, num=int(Waypoint_length))
+            xd_list = np.linspace(self.quadrotors[i].state[0], xd, num=N_iter) 
+            yd_list = np.linspace(self.quadrotors[i].state[1], yd, num=N_iter) 
+            zd_list = np.linspace(self.quadrotors[i].state[2], zd, num=N_iter) 
+            psid_list = np.linspace(self.quadrotors[i].state[5], psid, num=N_iter) 
 
-            print("Initial X:{0:.3}, Y:{1:.3}, Z:{2:.3} of Agent {3}".format(
-                pos0[0], pos0[1], pos0[2], i + 1))
-            print("Target X:{0:.3}, Y:{1:.3}, Z:{2:.3} in {3:.3} s.".format(
-                xd, yd, zd, newTraj.t_wps[1]))
+            prev_xd_dot = 0
+            prev_yd_dot = 0
+            prev_zd_dot = 0
 
-            for ind, t_current in enumerate(t_list):
-                pos_des, vel_des, acc_des, euler_des = newTraj.desiredState(
-                    t_current, self.dtau, self.quadrotors[i].state)
+            for k in range(N_iter):
+                prev_k = np.clip(k-1, 0, N_iter-1)
+                xd_dot = xd_list[k] - xd_list[prev_k]#self.quadrotors[i].state[0]
+                yd_dot = yd_list[k] - yd_list[prev_k]#self.quadrotors[i].state[1]
+                zd_dot = zd_list[k] - zd_list[prev_k]#self.quadrotors[i].state[2]
+                self.xd_dot = alpha*xd_dot + (1-alpha)*self.xd_dot
+                self.yd_dot = alpha*yd_dot + (1-alpha)*self.yd_dot
+                self.zd_dot = alpha*zd_dot + (1-alpha)*self.zd_dot
 
-                # self.vel_sum += (self.quad.state[6]**2+self.quad.state[7]**2+self.quad.state[8]**2)
-
-                xd, yd, zd = pos_des[0], pos_des[1], pos_des[2]
-                xd_dot, yd_dot, zd_dot = vel_des[0], vel_des[1], vel_des[2]
-                xd_ddot, yd_ddot, zd_ddot = acc_des[0], acc_des[1], acc_des[2]
-
-                # xd_dddot = (xd_ddot - self.xd_ddot_pr) / self.dtau
-                # yd_dddot = (yd_ddot - self.yd_ddot_pr) / self.dtau
-                # xd_ddddot = (xd_dddot - self.xd_dddot_pr) / self.dtau
-                # yd_ddddot = (yd_dddot - self.yd_dddot_pr) / self.dtau
-
-                psid = euler_des[2]
-
-                # psid_dot = (psid - self.psid_pr) / self.dtau
-                # psid_ddot = (psid_dot - self.psid_dot_pr) / self.dtau
+                xd_dotdot = self.xd_dot - prev_xd_dot#self.quadrotors[i].state[3]
+                yd_dotdot = self.yd_dot - prev_yd_dot#self.quadrotors[i].state[4]
+                zd_dotdot = self.zd_dot - prev_zd_dot#self.quadrotors[i].state[5]
+                self.xd_dotdot = alpha*xd_dotdot + (1-alpha)*self.xd_dotdot
+                self.yd_dotdot = alpha*yd_dotdot + (1-alpha)*self.yd_dotdot
+                self.zd_dotdot = alpha*zd_dotdot + (1-alpha)*self.zd_dotdot
 
                 # current_traj = [xd, yd, zd, xd_dot, yd_dot, zd_dot, xd_ddot, yd_ddot, zd_ddot,
                 #                 xd_dddot, yd_dddot, xd_ddddot, yd_ddddot,
                 #                 psid, psid_dot, psid_ddot]
-
-                current_traj = [xd, yd, zd, xd_dot, yd_dot, zd_dot, xd_ddot, yd_ddot, zd_ddot,
-                                0, 0, 0, 0,
+                current_traj = [xd_list[k], yd_list[k], zd_list[k], self.xd_dot, self.yd_dot, self.zd_dot, 
+                                self.xd_dotdot, self.yd_dotdot, self.zd_dotdot, 0, 0, 0, 0,
                                 psid, 0, 0]
 
                 self.fail_check[i] = self.quadrotors[i].simulate(current_traj)
 
                 if self.fail_check[i]:
-                    drone_crash = True
-                    print("Drone {0} has crashed!".format(i))
+                    print("Drone {0} has crashed!".format(i+1))
                     done = True
                     reward_list[i] = -1e4
                     break
 
                 current_pos = [self.quadrotors[i].state[0],
-                               self.quadrotors[i].state[1], self.quadrotors[i].state[2]]
+                                self.quadrotors[i].state[1], self.quadrotors[i].state[2]]
+
+                prev_xd_dot, prev_yd_dot, prev_zd_dot = self.xd_dot, self.yd_dot, self.zd_dot
 
                 reward_list[i] -= 0.025
 
-                if ind % 100 == 0:
-                    # if self.visualization:
-                    #     self.visualize()
-                    agent_pos_dict[i].append([self.quadrotors[i].state[0], self.quadrotors[i].state[1],
-                                     self.quadrotors[i].state[2], self.quadrotors[i].state[5]])
+                if (k+1) % 100 == 0:
+                    if self.visualization:
+                        self.visualize()
+                    # pos_list.append([self.quadrotors[i].state[0], self.quadrotors[i].state[1],
+                    #                  self.quadrotors[i].state[2], self.quadrotors[i].state[5]])
 
                     differences = current_pos - self.uncertainty_grids
                     distances = np.sum(differences * differences, axis=1)
                     indices = distances < self.dist
-
-                    for a in range(self.uncertainty_grids[indices].shape[0]):
-                        self.X_list.append(
-                            int(self.uncertainty_grids[indices][a, 0]))
-                        self.Y_list.append(
-                            int(self.uncertainty_grids[indices][a, 1]))
-                        self.Z_list.append(
-                            int(self.uncertainty_grids[indices][a, 2]))
-
-
                     reward_list[i] += 100.0 * np.sum(self.uncertainty_values[indices])
                     # out_of_map = 100*(np.clip(current_pos[0]-self.x_lim, 0, 1e3) +
                     #                   np.clip(current_pos[1]-self.y_lim, 0, 1e3) +
@@ -250,19 +229,19 @@ class QuadrotorFormation(gym.Env):
                             state_difference = self.quadrotors[i].state - self.quadrotors[j].state
                             drone_distance = np.sqrt(state_difference[0]**2 + state_difference[1]**2 + state_difference[2]**2)
                             if drone_distance < min_distance:
-                                reward_list[i] = -1e3
-                                # done = True
+                                reward_list[i] = -1e4
+                                done = True
                             elif drone_distance <= max_distance:
                                 reward_list[i] -= 100
 
-                    # print ("current_pos: ", current_pos)
-                    # print ("closest grid: ", self.uncertainty_grids[min_ind])
-                    
+
+            # agent_pos_dict[i] = pos_list
+
             print("Current X:{0:.3}, Y:{1:.3}, Z:{2:.3}, Reward:{3:.5} \n".format(
                 self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2], reward_list[i]))
             
 
-        return self._get_obs(), reward_list, done, agent_pos_dict
+        return self._get_obs(), reward_list, done, {}
 
     def _get_obs(self):
 
@@ -333,32 +312,7 @@ class QuadrotorFormation(gym.Env):
 
         return a_net
 
-    def uncertainty_visualizer(self):
-        # prepare some coordinates
-        # np.mgrid[-20:20:41j, -20:20:41j, 0:15:16j]
-        voxels = np.zeros((41, 41, 16))
-        voxels[:, :, :] = False
-        # set the colors of each object
-        x, y, z = np.indices(np.array(voxels.shape) + 1)
-
-        # and plot everything
-        fig = plt.figure()
-        ax = fig.gca(projection='3d')
-        # print(self.Z_list)
-        for i in range(len(self.X_list)):
-            voxels[:, :, self.Z_list[i] - 1][self.X_list[i] +
-                                             20, self.Y_list[i] + 20] = True
-
-        ax.voxels(x - 20, y - 20, z, voxels, facecolors='red', edgecolor='k')
-        ax.set_xlim(-20, 20)
-        ax.set_ylim(-20, 20)
-        ax.set_zlim(0, 15)
-        ax.set_xlabel('X - Dim')
-        ax.set_ylabel('Y - Dim')
-        ax.set_zlabel('Z - Dim')
-        plt.show()
-
-    def visualize(self, pos_list=None, mode='human'):
+    def visualize(self, agent_pos_dict=None, mode='human'):
         if self.viewer is None:
             self.viewer = rendering.Viewer(500, 500)
             self.viewer.set_bounds(-self.x_lim,
@@ -374,8 +328,8 @@ class QuadrotorFormation(gym.Env):
 
         for i in range(self.n_agents):
             self.viewer.add_onetime(self.drones[i])
-            self.drone_transforms[i].set_translation(pos_list[i][0], pos_list[i][1])
-            self.drone_transforms[i].set_rotation(pos_list[i][3])
+            self.drone_transforms[i].set_translation(self.quadrotors[i].state[0], self.quadrotors[i].state[1])
+            self.drone_transforms[i].set_rotation(self.quadrotors[i].state[5])
 
         # N_max = np.max([len(agent_pos_dict[i]) for i in agent_pos_dict.keys()])
 
@@ -385,6 +339,6 @@ class QuadrotorFormation(gym.Env):
         #         if j < len(agent_pos_dict[i]):
         #             pos_angle = agent_pos_dict[i][j]
         #             self.drone_transforms[i].set_translation(pos_angle[0], pos_angle[1])
-        #             self.drone_transforms[i].set_rotation(pos_angle[3])        
+        #             self.drone_transforms[i].set_rotation(pos_angle[3])
             
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')

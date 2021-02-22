@@ -42,7 +42,7 @@ class Quadrotor:
     
     def __init__(self, state0, coeff_pos=1.0, coeff_angle = 0.25, coeff_control = 0.0, coeff_final_pos=0.0):
         
-        self.state = state0
+        self.state = np.array(state0)
         # self.state2 = state0
         # self.state3 = state0
         self.U = [1, 0., 0., 0.]
@@ -216,10 +216,10 @@ class Quadrotor:
 
         U1, U2, U3, U4 = l2[1], l1[0], l1[1], l2[0]
 
-        U1 = np.clip(U1, 1.0, 1e2)
-        U2 = np.clip(U2, -1e2, 1e2)
-        U3 = np.clip(U3, -1e2, 1e2)
-        U4 = np.clip(U4, -1e2, 1e2)
+        U1 = np.clip(U1, 0.0, 1e5)
+        U2 = np.clip(U2, -1e5, 1e5)
+        U3 = np.clip(U3, -1e5, 1e5)
+        U4 = np.clip(U4, -1e5, 1e5)
 
         U = np.array([U1, U2, U3, U4])
 
