@@ -15,7 +15,7 @@ def main():
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device = 'cpu'
     seed = 25
-    is_centralized = True
+    is_centralized = False
     visualization = False
 
     # Create environments.
