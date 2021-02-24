@@ -15,24 +15,27 @@ class BaseAgent(ABC):
                  target_entropy_ratio=0.98, start_steps=200,
                  update_interval=4, target_update_interval=5,
                  use_per=False, num_eval_steps=125000, max_episode_steps=20000, max_iteration_steps=300,
-                 log_interval=10, eval_interval=500, cuda=True, seed=0):
+                 log_interval=10, eval_interval=500, device='cpu', seed=0):
         super().__init__()
 
         self.env = env
-        agent_obs_shape = (self.env.N_frame*(self.env.n_agents+1)+1, self.env.out_shape, self.env.out_shape)
+        agent_obs_shape = (self.env.N_frame * (self.env.n_agents + 1) +
+                           1, self.env.out_shape, self.env.out_shape)
 
         # Set seed.
         torch.manual_seed(seed)
         np.random.seed(seed)
         self.env.seed(seed)
+
+        self.device = device
         # torch.backends.cudnn.deterministic = True  # It harms a performance.
         # torch.backends.cudnn.benchmark = False  # It harms a performance.
 
         # self.device = torch.device(
         #     "cuda" if cuda and torch.cuda.is_available() else "cpu")
-        
+
         # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
+
         # LazyMemory efficiently stores FrameStacked states.
         if use_per:
             beta_steps = (num_steps - start_steps) / update_interval
@@ -72,10 +75,9 @@ class BaseAgent(ABC):
         self.log_interval = log_interval
         self.eval_interval = eval_interval
 
-
     def is_update(self, episode):
         return episode % self.update_interval == 0\
-            and episode >= self.start_steps 
+            and episode >= self.start_steps
 
     @abstractmethod
     def explore(self, state, device):
@@ -110,7 +112,7 @@ class BaseAgent(ABC):
         pass
 
     def train_episode(self):
-        
+
         for episode in range(self.max_episode_steps):
             episode_return = 0.
             agent_obs = self.env.reset()
@@ -118,25 +120,26 @@ class BaseAgent(ABC):
 
             for iteration in range(self.max_iteration_steps):
 
-                if episode < self.start_steps :
+                if episode < self.start_steps:
                     action = self.env.action_space.sample()
                 else:
                     action = self.explore(agent_obs, self.device)
 
-                next_agent_obs, reward, done, _ = self.env.step(action, iteration)
+                next_agent_obs, reward, done, _ = self.env.step(
+                    action, iteration)
 
                 # Clip reward to [-1.0, 1.0].
                 # clipped_reward = max(min(reward, 1.0), -1.0)
 
                 # To calculate efficiently, set priority=max_priority here.
-                self.memory.append(agent_obs, action, reward, next_agent_obs, done)
+                self.memory.append(agent_obs, action, reward,
+                                   next_agent_obs, done)
 
                 episode_return += reward
                 agent_obs = next_agent_obs
 
                 if done:
                     break
-
 
             if self.is_update(episode):
                 self.learn()
@@ -146,15 +149,16 @@ class BaseAgent(ABC):
 
             if episode % self.eval_interval == 0 and episode >= self.start_steps:
                 self.evaluate()
-                if episode % 2*self.eval_interval == 0:
-                    self.save_models(os.path.join(self.model_dir, 'final'), episode)
+                if episode % 2 * self.eval_interval == 0:
+                    self.save_models(os.path.join(
+                        self.model_dir, 'final'), episode)
 
             # We log running mean of training rewards.
             self.train_return.append(episode_return)
 
             print(f'Episode: {episode:5}  '
-                f'Iteration: {iteration:<3}  '
-                f'Return: {episode_return:<5.1f}')
+                  f'Iteration: {iteration:<3}  '
+                  f'Return: {episode_return:<5.1f}')
 
     def learn(self):
         assert hasattr(self, 'q1_optim') and hasattr(self, 'q2_optim') and\
@@ -184,8 +188,7 @@ class BaseAgent(ABC):
         if self.use_per:
             self.memory.update_priority(errors)
 
-
-    def evaluate(self):        
+    def evaluate(self):
         agent_obs = self.env.reset()
         iteration_steps = 1
         episode_return = 0.0
@@ -193,7 +196,8 @@ class BaseAgent(ABC):
 
         while iteration_steps <= self.max_iteration_steps:
             action = self.exploit(agent_obs, self.device)
-            next_agent_obs, reward, done, _ = self.env.step(action, iteration_steps)
+            next_agent_obs, reward, done, _ = self.env.step(
+                action, iteration_steps)
             iteration_steps += 1
             episode_return += reward
             agent_obs = next_agent_obs
@@ -203,22 +207,27 @@ class BaseAgent(ABC):
             self.save_models(os.path.join(self.model_dir, 'best'), 1)
             print(f'Evaluation mode - Better reward: {episode_return:<5.1f}')
 
-
-    def test_episode(self):        
+    def test_episode(self):
         agent_obs = self.env.reset()
         iteration_steps = 1
         episode_return = 0.0
         done = False
+        pos_list = [[] for i in range(self.env.n_agents)]
 
         while iteration_steps <= self.max_iteration_steps:
-            action = self.exploit(agent_obs, self.device)
-            next_agent_obs, reward, done, _ = self.env.step(action, iteration_steps)
+            action = self.explore(agent_obs, self.device)
+            next_agent_obs, reward, done, _ = self.env.step(
+                action, iteration_steps)
             iteration_steps += 1
             episode_return += reward
             agent_obs = next_agent_obs
 
+            for i in range(self.env.n_agents):
+                pos_list[i].append(self.env.quadrotors[i].state[0:3])
+
         print(f'Test Mode - Episode Reward: {episode_return:<5.1f}')
 
+        return pos_list
 
     @abstractmethod
     def save_models(self, save_dir, episode_number):

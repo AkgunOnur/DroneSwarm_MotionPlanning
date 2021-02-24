@@ -10,30 +10,32 @@ from sac_discrete.utils import update_params, RunningMeanStats
 
 class BaseAgent_Decentralized(ABC):
 
-    def __init__(self, env, n_agents=2, num_steps=100000, batch_size=128,
+    def __init__(self, env, num_steps=100000, batch_size=128,
                  memory_size=100000, gamma=0.99, multi_step=1,
                  target_entropy_ratio=0.98, start_steps=200,
                  update_interval=4, target_update_interval=5,
                  use_per=False, num_eval_steps=125000, max_episode_steps=20000, max_iteration_steps=300,
-                 log_interval=10, eval_interval=500, cuda=True, seed=0):
+                 log_interval=10, eval_interval=500, device='cpu', seed=0):
         super().__init__()
 
         self.env = env
-        self.n_agents = n_agents
-        agent_obs_shape = (self.env.N_frame*(self.env.n_agents+1)+1, self.env.out_shape, self.env.out_shape)
+        agent_obs_shape = (self.env.N_frame * (self.env.n_agents + 1) +
+                           1, self.env.out_shape, self.env.out_shape)
 
         # Set seed.
         torch.manual_seed(seed)
         np.random.seed(seed)
         self.env.seed(seed)
+
+        self.device = device
         # torch.backends.cudnn.deterministic = True  # It harms a performance.
         # torch.backends.cudnn.benchmark = False  # It harms a performance.
 
         # self.device = torch.device(
         #     "cuda" if cuda and torch.cuda.is_available() else "cpu")
-        
+
         # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
+
         # LazyMemory efficiently stores FrameStacked states.
         if use_per:
             beta_steps = (num_steps - start_steps) / update_interval
@@ -41,12 +43,12 @@ class BaseAgent_Decentralized(ABC):
                 capacity=memory_size,
                 state_shape=agent_obs_shape,
                 device=self.device, gamma=gamma, multi_step=multi_step,
-                beta_steps=beta_steps) for i in range(self.n_agents)]
+                beta_steps=beta_steps) for i in range(self.env.n_agents)]
         else:
-            self.memory = [ LazyMultiStepMemory(
+            self.memory = [LazyMultiStepMemory(
                 capacity=memory_size,
                 state_shape=agent_obs_shape,
-                device=self.device, gamma=gamma, multi_step=multi_step) for i in range(self.n_agents)]
+                device=self.device, gamma=gamma, multi_step=multi_step) for i in range(self.env.n_agents)]
 
         self.model_dir = '/okyanus/users/deepdrone/Independent_DroneSwarm/DroneSwarm_MotionPlanning/models'
         self.summary_dir = '/okyanus/users/deepdrone/Independent_DroneSwarm/DroneSwarm_MotionPlanning/summary'
@@ -58,7 +60,7 @@ class BaseAgent_Decentralized(ABC):
         # self.writer = SummaryWriter(log_dir=self.summary_dir)
 
         self.learning_steps = 0
-        self.best_eval_score = [-np.inf for i in range(self.n_agents)]
+        self.best_eval_score = [-np.inf for i in range(self.env.n_agents)]
         self.num_steps = num_steps
         self.batch_size = batch_size
         self.gamma_n = gamma ** multi_step
@@ -71,7 +73,6 @@ class BaseAgent_Decentralized(ABC):
         self.max_iteration_steps = max_iteration_steps
         self.log_interval = log_interval
         self.eval_interval = eval_interval
-
 
     def is_update(self, episode):
         return episode % self.update_interval == 0\
@@ -110,35 +111,37 @@ class BaseAgent_Decentralized(ABC):
         pass
 
     def train_episode(self):
-        
+
         for episode in range(self.max_episode_steps):
-            episode_return = [0. for i in range(self.n_agents)]
+            episode_return = [0. for i in range(self.env.n_agents)]
             agent_obs = self.env.reset()
             done = False
 
             for iteration in range(self.max_iteration_steps):
-                action = np.zeros(self.n_agents)
-                for agent_ind in range(self.n_agents):
+                action = np.zeros(self.env.n_agents)
+                for agent_ind in range(self.env.n_agents):
                     if episode < self.start_steps:
                         action[agent_ind] = self.env.action_space.sample()
                     else:
-                        action[agent_ind] = self.explore(agent_ind, agent_obs, self.device)
+                        action[agent_ind] = self.explore(
+                            agent_ind, agent_obs, self.device)
 
-                next_agent_obs, reward, done, _ = self.env.step(action, iteration)
+                next_agent_obs, reward, done, _ = self.env.step(
+                    action, iteration)
 
                 # Clip reward to [-1.0, 1.0].
                 # clipped_reward = max(min(reward, 1.0), -1.0)
 
                 # To calculate efficiently, set priority=max_priority here.
-                for agent_ind in range(self.n_agents):
-                    self.memory[agent_ind].append(agent_obs, action[agent_ind], reward[agent_ind], next_agent_obs, done)
+                for agent_ind in range(self.env.n_agents):
+                    self.memory[agent_ind].append(
+                        agent_obs, action[agent_ind], reward[agent_ind], next_agent_obs, done)
                     episode_return[agent_ind] += reward[agent_ind]
 
                 agent_obs = next_agent_obs
 
                 if done:
                     break
-
 
             if self.is_update(episode):
                 self.learn()
@@ -148,23 +151,24 @@ class BaseAgent_Decentralized(ABC):
 
             if episode % self.eval_interval == 0 and episode >= self.start_steps:
                 self.evaluate()
-                for agent_ind in range(self.n_agents):
-                    self.save_models(os.path.join(self.model_dir, 'final'), agent_ind)
-                    if episode % 2*self.eval_interval == 0:
-                        self.save_models(os.path.join(self.model_dir, 'final'), episode)
-
+                for agent_ind in range(self.env.n_agents):
+                    self.save_models(os.path.join(
+                        self.model_dir, 'final'), agent_ind)
+                    if episode % 2 * self.eval_interval == 0:
+                        self.save_models(os.path.join(
+                            self.model_dir, 'final'), episode)
 
             print(f'Episode: {episode:<5}  '
-                f'Iteration: {iteration:<3}  '
-                f'Return 1: {episode_return[0]:<5.1f}  '
-                f'Return 2: {episode_return[1]:<5.1f}')
+                  f'Iteration: {iteration:<3}  '
+                  f'Return 1: {episode_return[0]:<5.1f}  '
+                  f'Return 2: {episode_return[1]:<5.1f}')
 
     def learn(self):
         assert hasattr(self, 'q1_optim') and hasattr(self, 'q2_optim') and\
             hasattr(self, 'policy_optim') and hasattr(self, 'alpha_optim')
 
         self.learning_steps += 1
-        for agent_ind in range(self.n_agents):
+        for agent_ind in range(self.env.n_agents):
 
             if self.use_per:
                 batch, weights = self.memory[agent_ind].sample(self.batch_size)
@@ -175,7 +179,8 @@ class BaseAgent_Decentralized(ABC):
 
             q1_loss, q2_loss, errors, mean_q1, mean_q2 = \
                 self.calc_critic_loss(batch, weights, agent_ind)
-            policy_loss, entropies = self.calc_policy_loss(batch, weights, agent_ind)
+            policy_loss, entropies = self.calc_policy_loss(
+                batch, weights, agent_ind)
             entropy_loss = self.calc_entropy_loss(entropies, weights)
 
             update_params(self.q1_optim[agent_ind], q1_loss)
@@ -188,44 +193,54 @@ class BaseAgent_Decentralized(ABC):
             if self.use_per:
                 self.memory[agent_ind].update_priority(errors)
 
-    def evaluate(self):        
+    def evaluate(self):
         agent_obs = self.env.reset()
         iteration_steps = 1
-        episode_return = np.zeros(self.n_agents)
+        episode_return = np.zeros(self.env.n_agents)
         done = False
 
         while iteration_steps <= self.max_iteration_steps:
             action = self.exploit(agent_obs, self.device)
-            next_agent_obs, reward, done, _ = self.env.step(action, iteration_steps)
+            next_agent_obs, reward, done, _ = self.env.step(
+                action, iteration_steps)
             iteration_steps += 1
             episode_return += reward
             agent_obs = next_agent_obs
 
-        for agent_ind in range(self.n_agents):
+        for agent_ind in range(self.env.n_agents):
             if episode_return[agent_ind] > self.best_eval_score[agent_ind]:
-                print ("Better reward obtained for Agent {0}. The reward: {1:.3f}".format(agent_ind+1, episode_return[agent_ind]))
+                print("Better reward obtained for Agent {0}. The reward: {1:.3f}".format(
+                    agent_ind + 1, episode_return[agent_ind]))
                 self.best_eval_score[agent_ind] = episode_return[agent_ind]
-                self.save_models(os.path.join(self.model_dir, 'best'), agent_ind, 1)
+                self.save_models(os.path.join(
+                    self.model_dir, 'best'), agent_ind, 1)
 
                 # print(f'Evaluation Mode'
                 #       f'Return {agent_ind+1:<2}: {episode_return[agent_ind]:<5.1f}  ')
 
-    def test_episode(self):        
+    def test_episode(self):
         agent_obs = self.env.reset()
         iteration_steps = 1
-        episode_return = np.zeros(self.n_agents)
+        episode_return = np.zeros(self.env.n_agents)
         done = False
+        pos_list = [[] for i in range(self.env.n_agents)]
 
         while iteration_steps <= self.max_iteration_steps:
             action = self.exploit(agent_obs, self.device)
-            next_agent_obs, reward, done, _ = self.env.step(action, iteration_steps)
+            next_agent_obs, reward, done, _ = self.env.step(
+                action, iteration_steps)
             iteration_steps += 1
             episode_return += reward
             agent_obs = next_agent_obs
 
-        for agent_ind in range(self.n_agents):
-            print ("Test Mode - For Agent {0}, The reward: {1:.3f}".format(agent_ind+1, episode_return[agent_ind]))
-                
+            for i in range(self.env.n_agents):
+                pos_list[i].append(self.env.quadrotors[i].state[0:3])
+
+        for agent_ind in range(self.env.n_agents):
+            print("Test Mode - For Agent {0}, The reward: {1:.3f}".format(
+                agent_ind + 1, episode_return[agent_ind]))
+
+        return pos_list
 
     @abstractmethod
     def save_models(self, save_dir, agent_ind, episode_number):

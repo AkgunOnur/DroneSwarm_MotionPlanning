@@ -1,7 +1,7 @@
 import gym
 from gym import spaces, error, utils
 from gym.utils import seeding
-# from gym.envs.classic_control import rendering
+from gym.envs.classic_control import rendering
 import numpy as np
 import configparser
 from os import path
@@ -183,7 +183,7 @@ class QuadrotorFormation(gym.Env):
             # print ("Agent {0}".format(agent_ind+1))
             # print ("Current reward: {0:.4}".format(reward_list[agent_ind]))
 
-            # sleep(3.0)
+            # sleep(2.0)
 
         
         if self.is_centralized:
