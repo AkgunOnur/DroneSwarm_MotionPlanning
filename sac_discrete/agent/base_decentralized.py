@@ -50,14 +50,9 @@ class BaseAgent_Decentralized(ABC):
                 state_shape=agent_obs_shape,
                 device=self.device, gamma=gamma, multi_step=multi_step) for i in range(self.env.n_agents)]
 
-        self.model_dir = '/okyanus/users/deepdrone/Independent_DroneSwarm/DroneSwarm_MotionPlanning/models'
-        self.summary_dir = '/okyanus/users/deepdrone/Independent_DroneSwarm/DroneSwarm_MotionPlanning/summary'
+        self.model_dir = '/okyanus/users/deepdrone/decentralized/DroneSwarm_MotionPlanning/models_decentralized'
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
-        if not os.path.exists(self.summary_dir):
-            os.makedirs(self.summary_dir)
-
-        # self.writer = SummaryWriter(log_dir=self.summary_dir)
 
         self.learning_steps = 0
         self.best_eval_score = [-np.inf for i in range(self.env.n_agents)]
@@ -123,8 +118,7 @@ class BaseAgent_Decentralized(ABC):
                     if episode < self.start_steps:
                         action[agent_ind] = self.env.action_space.sample()
                     else:
-                        action[agent_ind] = self.explore(
-                            agent_ind, agent_obs, self.device)
+                        action[agent_ind] = self.explore(agent_ind, agent_obs, self.device)
 
                 next_agent_obs, reward, done, _ = self.env.step(
                     action, iteration)
@@ -153,10 +147,10 @@ class BaseAgent_Decentralized(ABC):
                 self.evaluate()
                 for agent_ind in range(self.env.n_agents):
                     self.save_models(os.path.join(
-                        self.model_dir, 'final'), agent_ind)
+                        self.model_dir, 'final'), agent_ind, episode)
                     if episode % 2 * self.eval_interval == 0:
                         self.save_models(os.path.join(
-                            self.model_dir, 'final'), episode)
+                            self.model_dir, 'final'), agent_ind, episode)
 
             print(f'Episode: {episode:<5}  '
                   f'Iteration: {iteration:<3}  '
@@ -200,9 +194,11 @@ class BaseAgent_Decentralized(ABC):
         done = False
 
         while iteration_steps <= self.max_iteration_steps:
-            action = self.exploit(agent_obs, self.device)
-            next_agent_obs, reward, done, _ = self.env.step(
-                action, iteration_steps)
+            action = np.zeros(self.env.n_agents)
+            for agent_ind in range(self.env.n_agents):
+                action[agent_ind] = self.explore(agent_ind, agent_obs, self.device)
+
+            next_agent_obs, reward, done, _ = self.env.step(action, iteration_steps)
             iteration_steps += 1
             episode_return += reward
             agent_obs = next_agent_obs
@@ -226,7 +222,10 @@ class BaseAgent_Decentralized(ABC):
         pos_list = [[] for i in range(self.env.n_agents)]
 
         while iteration_steps <= self.max_iteration_steps:
-            action = self.exploit(agent_obs, self.device)
+            action = np.zeros(self.env.n_agents)
+            for agent_ind in range(self.env.n_agents):
+                action[agent_ind] = self.explore(agent_ind, agent_obs, self.device)
+
             next_agent_obs, reward, done, _ = self.env.step(
                 action, iteration_steps)
             iteration_steps += 1
@@ -247,5 +246,3 @@ class BaseAgent_Decentralized(ABC):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-    # def __del__(self):
-    #     self.writer.close()

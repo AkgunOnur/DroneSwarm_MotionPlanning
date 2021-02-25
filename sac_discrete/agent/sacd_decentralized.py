@@ -64,15 +64,12 @@ class SacdAgent_Decentralized(BaseAgent_Decentralized):
 
         return action.item()
 
-    def exploit(self, agent_obs, device):
+    def exploit(self, agent_ind, agent_obs, device):
         # Act without randomness.
         with torch.no_grad():
-            action_list = []
-            for i in range(self.env.n_agents):
-                action = self.policy[i].act(agent_obs, device)
-                action_list.append(action.item())
-
-        return action_list
+            action = self.policy[agent_ind].act(agent_obs, device)
+            
+        return action.item()
 
     def update_target(self):
         for i in range(self.env.n_agents):

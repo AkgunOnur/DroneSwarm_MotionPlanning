@@ -50,14 +50,10 @@ class BaseAgent(ABC):
                 state_shape=agent_obs_shape,
                 device=self.device, gamma=gamma, multi_step=multi_step)
 
-        self.model_dir = '/okyanus/users/deepdrone/DroneSwarm_MotionPlanning/models'
-        self.summary_dir = '/okyanus/users/deepdrone/DroneSwarm_MotionPlanning/summary'
+        self.model_dir = '/okyanus/users/deepdrone/centralized/DroneSwarm_MotionPlanning/models_centralized'
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
-        if not os.path.exists(self.summary_dir):
-            os.makedirs(self.summary_dir)
 
-        # self.writer = SummaryWriter(log_dir=self.summary_dir)
         self.train_return = RunningMeanStats(log_interval)
 
         self.learning_steps = 0
@@ -195,7 +191,7 @@ class BaseAgent(ABC):
         done = False
 
         while iteration_steps <= self.max_iteration_steps:
-            action = self.exploit(agent_obs, self.device)
+            action = self.explore(agent_obs, self.device)
             next_agent_obs, reward, done, _ = self.env.step(
                 action, iteration_steps)
             iteration_steps += 1
@@ -209,21 +205,27 @@ class BaseAgent(ABC):
 
     def test_episode(self):
         agent_obs = self.env.reset()
-        iteration_steps = 1
+        iteration_steps = 0
         episode_return = 0.0
         done = False
-        pos_list = [[] for i in range(self.env.n_agents)]
+        # pos_list = [[] for i in range(self.env.n_agents)]
+        pos_list = np.zeros((3, self.max_iteration_steps, self.env.n_agents))
 
-        while iteration_steps <= self.max_iteration_steps:
+        while iteration_steps < self.max_iteration_steps:
             action = self.explore(agent_obs, self.device)
             next_agent_obs, reward, done, _ = self.env.step(
                 action, iteration_steps)
-            iteration_steps += 1
+            
             episode_return += reward
             agent_obs = next_agent_obs
 
             for i in range(self.env.n_agents):
-                pos_list[i].append(self.env.quadrotors[i].state[0:3])
+                # print ("state {0}: X:{1:.3}, Y:{2:.3}, Z:{3:.3}".format(i+1, self.env.quadrotors[i].state[0], 
+                #                                                 self.env.quadrotors[i].state[1],self.env.quadrotors[i].state[2] ))
+                pos_list[:, iteration_steps, i] = self.env.quadrotors[i].state[0:3]
+
+            
+            iteration_steps += 1
 
         print(f'Test Mode - Episode Reward: {episode_return:<5.1f}')
 
@@ -234,5 +236,3 @@ class BaseAgent(ABC):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-    # def __del__(self):
-    #     self.writer.close()

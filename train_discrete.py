@@ -10,11 +10,17 @@ from point_mass_formation_discrete import QuadrotorFormation
 
 def main():
     n_agents = 2
-    N_train = 5
     N_frame = 5
+    Max_iteration = 6000
+    Eval_interval = 500
+    N_episodes = 50000
+    Batch_size = 256
+    Memory_Size = 150000
+    Training_Start = 200
+
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device = 'cpu'
-    seed = 25
+    seed = 27
     is_centralized = False
     visualization = False
 
@@ -24,14 +30,12 @@ def main():
 
     # Create the agent.
     if is_centralized:
-        agent = SacdAgent(env=env, n_agents=n_agents, N_frame=N_frame, batch_size=128,
-                          memory_size=150000, start_steps=200, update_interval=4, target_update_interval=12,
-                          use_per=True, dueling_net=True, max_episode_steps=100000, eval_interval=500, max_iteration_steps=250,
+        agent = SacdAgent(env=env, batch_size=Batch_size, memory_size=Memory_Size, start_steps=Training_Start, update_interval=4, target_update_interval=12,
+                          use_per=True, dueling_net=True, max_episode_steps=N_episodes, eval_interval=Eval_interval, max_iteration_steps=Max_iteration,
                           device=device, seed=seed)
     else:
-        agent = SacdAgent_Decentralized(env=env, n_agents=n_agents, N_frame=N_frame, batch_size=128,
-                                        memory_size=150000, start_steps=200, update_interval=4, target_update_interval=12,
-                                        use_per=True, dueling_net=True, max_episode_steps=100000, eval_interval=500, max_iteration_steps=250,
+        agent = SacdAgent_Decentralized(env=env, batch_size=Batch_size, memory_size=Memory_Size, start_steps=Training_Start, update_interval=4, target_update_interval=12,
+                                        use_per=True, dueling_net=True, max_episode_steps=N_episodes, eval_interval=Eval_interval, max_iteration_steps=Max_iteration,
                                         device=device, seed=seed)
 
     agent.train_episode()
