@@ -19,6 +19,7 @@ class BaseAgent_Decentralized(ABC):
         super().__init__()
 
         self.env = env
+        self.is_centralized = False
         agent_obs_shape = (self.env.N_frame * (self.env.n_agents + 1) +
                            1, self.env.out_shape, self.env.out_shape)
 
@@ -111,7 +112,7 @@ class BaseAgent_Decentralized(ABC):
             episode_return = [0. for i in range(self.env.n_agents)]
             agent_obs = self.env.reset()
             done = False
-
+            
             for iteration in range(self.max_iteration_steps):
                 action = np.zeros(self.env.n_agents)
                 for agent_ind in range(self.env.n_agents):
@@ -120,8 +121,7 @@ class BaseAgent_Decentralized(ABC):
                     else:
                         action[agent_ind] = self.explore(agent_ind, agent_obs, self.device)
 
-                next_agent_obs, reward, done, _ = self.env.step(
-                    action, iteration)
+                next_agent_obs, reward, done, _ = self.env.step(action, iteration, self.is_centralized)
 
                 # Clip reward to [-1.0, 1.0].
                 # clipped_reward = max(min(reward, 1.0), -1.0)
@@ -198,7 +198,7 @@ class BaseAgent_Decentralized(ABC):
             for agent_ind in range(self.env.n_agents):
                 action[agent_ind] = self.explore(agent_ind, agent_obs, self.device)
 
-            next_agent_obs, reward, done, _ = self.env.step(action, iteration_steps)
+            next_agent_obs, reward, done, _ = self.env.step(action, iteration_steps, self.is_centralized)
             iteration_steps += 1
             episode_return += reward
             agent_obs = next_agent_obs
@@ -226,8 +226,7 @@ class BaseAgent_Decentralized(ABC):
             for agent_ind in range(self.env.n_agents):
                 action[agent_ind] = self.explore(agent_ind, agent_obs, self.device)
 
-            next_agent_obs, reward, done, _ = self.env.step(
-                action, iteration_steps)
+            next_agent_obs, reward, done, _ = self.env.step(action, iteration_steps, self.is_centralized)
             iteration_steps += 1
             episode_return += reward
             agent_obs = next_agent_obs
@@ -240,6 +239,27 @@ class BaseAgent_Decentralized(ABC):
                 agent_ind + 1, episode_return[agent_ind]))
 
         return pos_list
+
+    def test_planner(self, agent_obs, max_iteration):
+        iteration_steps = 1
+        episode_return = np.zeros(self.env.n_agents)
+        done = False
+        pos_list = [[] for i in range(self.env.n_agents)]
+
+        while iteration_steps <= max_iteration:
+            action = np.zeros(self.env.n_agents)
+            for agent_ind in range(self.env.n_agents):
+                action[agent_ind] = self.explore(agent_ind, agent_obs, self.device)
+
+            next_agent_obs, reward, done, _ = self.env.step(action, iteration_steps, self.is_centralized)
+            iteration_steps += 1
+            episode_return += reward
+            agent_obs = next_agent_obs
+
+            for i in range(self.env.n_agents):
+                pos_list[i].append(self.env.quadrotors[i].state[0:3])
+
+        return next_agent_obs, np.sum(episode_return), done
 
     @abstractmethod
     def save_models(self, save_dir, agent_ind, episode_number):

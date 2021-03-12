@@ -84,7 +84,7 @@ class QuadrotorFormation(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def step(self, action, iteration):
+    def step(self, action, iteration, is_centralized):
         self.iteration = iteration
         max_distance = 5.0
         min_distance = 0.5
@@ -98,7 +98,7 @@ class QuadrotorFormation(gym.Env):
         for i in range(self.n_agents):
             total_explored_indices.append([])
 
-        if self.is_centralized:
+        if is_centralized:
             agents_actions = self.action_list[action]
         else:
             agents_actions = np.reshape(action, (self.n_agents,))

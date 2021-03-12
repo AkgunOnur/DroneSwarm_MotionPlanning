@@ -22,15 +22,15 @@ class SacdAgent(BaseAgent):
             multi_step, target_entropy_ratio, start_steps, update_interval,
             target_update_interval, use_per, num_eval_steps, max_episode_steps, max_iteration_steps,
             log_interval, eval_interval, device, seed)
-
+        N_action = 6 ** 2
         # Define networks.
         self.policy = CateoricalPolicy(
-            self.env.N_frame * (self.env.n_agents + 1) + 1, self.env.action_space.n).to(self.device)
+            self.env.N_frame * (self.env.n_agents + 1) + 1, N_action).to(self.device)
         self.online_critic = TwinnedQNetwork(
-            self.env.N_frame * (self.env.n_agents + 1) + 1, self.env.action_space.n,
+            self.env.N_frame * (self.env.n_agents + 1) + 1, N_action,
             dueling_net=dueling_net).to(device=self.device)
         self.target_critic = TwinnedQNetwork(
-            self.env.N_frame * (self.env.n_agents + 1) + 1, self.env.action_space.n,
+            self.env.N_frame * (self.env.n_agents + 1) + 1, N_action,
             dueling_net=dueling_net).to(device=self.device).eval()
 
         # Copy parameters of the learning network to the target network.
@@ -45,7 +45,7 @@ class SacdAgent(BaseAgent):
 
         # Target entropy is -log(1/|A|) * ratio (= maximum entropy * ratio).
         self.target_entropy = \
-            -np.log(1.0 / self.env.action_space.n) * target_entropy_ratio
+            -np.log(1.0 / N_action) * target_entropy_ratio
 
         # We optimize log(alpha), instead of alpha.
         self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
