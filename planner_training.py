@@ -20,6 +20,9 @@ def main():
     start_steps = 100
     N_iteration = 5
     update_interval = 5
+    eval_interval = 100
+    best_reward = -np.Inf
+    model_dir = '/okyanus/users/deepdrone/DroneSwarm_MotionPlanning/models_planner'
 
     file_name = "best"
     episode_number = 20000
@@ -92,6 +95,13 @@ def main():
 
         if i_episode > start_steps and i_episode % update_interval == 0:
             dqn.learn()
+
+        if episode_reward > best_reward:
+            best_reward = episode_reward
+            dqn.save_models(os.path.join(model_dir, 'best'), 1)
+
+        if i_episode % eval_interval == 0 and i_episode >= start_steps:
+            dqn.save_models(os.path.join(model_dir, 'final'), i_episode)
 
         print('Episode: ', i_episode, '| Episode_reward: ', round(episode_reward, 2))
 

@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -106,3 +107,9 @@ class DQN(object):
         self.optimizer.step()
 
         # print ("Learn function is called!")
+
+    def save_models(self, save_dir, episode_number):
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        torch.save(self.eval_net.state_dict(), os.path.join(save_dir, 'policy_' + str(episode_number) + '.pth'))
+        torch.save(self.target_net.state_dict(), os.path.join(save_dir, 'target_net_' + str(episode_number) + '.pth'))

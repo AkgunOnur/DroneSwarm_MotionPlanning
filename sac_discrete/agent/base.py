@@ -146,8 +146,7 @@ class BaseAgent(ABC):
             if episode % self.eval_interval == 0 and episode >= self.start_steps:
                 self.evaluate()
                 if episode % 2 * self.eval_interval == 0:
-                    self.save_models(os.path.join(
-                        self.model_dir, 'final'), episode)
+                    self.save_models(os.path.join(self.model_dir, 'final'), episode)
 
             # We log running mean of training rewards.
             self.train_return.append(episode_return)
