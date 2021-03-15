@@ -44,7 +44,7 @@ def main():
         # agent_c.target_critic.eval()
         # agent_c.online_critic.load_state_dict(torch.load("./models_centralized/" + file_name + "/online_critic_1.pth"))
         # agent_c.online_critic.eval()
-        agent_c.policy.load_state_dict(torch.load("./models_centralized/" +  file_name + "/policy_1.pth"))
+        agent_c.policy.load_state_dict(torch.load("/okyanus/users/deepdrone/DroneSwarm_MotionPlanning/models_centralized/" +  file_name + "/policy_1.pth"))
         agent_c.policy.eval()
 
         for i in range(n_agents):
@@ -52,14 +52,14 @@ def main():
             # agent_d.target_critic[i].eval()
             # agent_d.online_critic[i].load_state_dict(torch.load("./models_decentralized/" + file_name + "/online_critic_" + str(i+1) + "_1.pth"))
             # agent_d.online_critic[i].eval()
-            agent_d.policy[i].load_state_dict(torch.load("./models_decentralized/" + file_name + "/policy_" + str(i+1) + "_1.pth"))
+            agent_d.policy[i].load_state_dict(torch.load("/okyanus/users/deepdrone/DroneSwarm_MotionPlanning/models_decentralized/" + file_name + "/policy_" + str(i+1) + "_1.pth"))
             agent_d.policy[i].eval()
     else:
         # agent_c.target_critic.load_state_dict(torch.load("./models_centralized/" + file_name + "/target_critic_" + str(episode_number) + ".pth"))
         # agent_c.target_critic.eval()
         # agent_c.online_critic.load_state_dict(torch.load("./models_centralized/" + file_name + "/online_critic_" + str(episode_number) + ".pth"))
         # agent_c.online_critic.eval()
-        agent_c.policy.load_state_dict(torch.load("./models_centralized/" +  file_name + "/policy_" + str(episode_number) + ".pth"))
+        agent_c.policy.load_state_dict(torch.load("/okyanus/users/deepdrone/DroneSwarm_MotionPlanning/models_centralized/" +  file_name + "/policy_" + str(episode_number) + ".pth"))
         agent_c.policy.eval()
 
         for i in range(n_agents):
@@ -67,10 +67,9 @@ def main():
             # agent_d.target_critic[i].eval()
             # agent_d.online_critic[i].load_state_dict(torch.load("./models_decentralized/" + file_name + "/online_critic_" + str(i+1) + "_" + str(episode_number) + ".pth"))
             # agent_d.online_critic[i].eval()
-            agent_d.policy[i].load_state_dict(torch.load("./models_decentralized/" + file_name + "/policy_" + str(i+1) + "_" + str(episode_number) + ".pth"))
+            agent_d.policy[i].load_state_dict(torch.load("/okyanus/users/deepdrone/DroneSwarm_MotionPlanning/models_decentralized/" + file_name + "/policy_" + str(i+1) + "_" + str(episode_number) + ".pth"))
             agent_d.policy[i].eval()
 
-    
 
     dqn = DQN()
 
