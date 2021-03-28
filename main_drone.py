@@ -32,9 +32,9 @@ parser.add_argument('--batch_size', type=int, default=8,
 parser.add_argument('--nprocesses', type=int, default=1,
                     help='How many processes to run')
 # model
-parser.add_argument('--hid_size', default=64, type=int,
+parser.add_argument('--hid_size', default=128, type=int,
                     help='hidden layer size')
-parser.add_argument('--recurrent', action='store_true', default=False,
+parser.add_argument('--recurrent', action='store_true', default=True,
                     help='make the model recurrent in time')
 # optimization
 parser.add_argument('--gamma', type=float, default=1.0,
@@ -65,7 +65,7 @@ parser.add_argument('--plot', action='store_true', default=False,
                     help='plot training progress')
 parser.add_argument('--plot_env', default='main', type=str,
                     help='plot env name')
-parser.add_argument('--save', default='./model/', type=str,
+parser.add_argument('--save', default='/okyanus/users/deepdrone/motion_planning/DroneSwarm_MP_IC3/model/', type=str,
                     help='save the model after training')
 parser.add_argument('--save_every', default=2, type=int,
                     help='save the model after every n_th epoch')
@@ -81,7 +81,7 @@ parser.add_argument('--random', action='store_true', default=False,
 # CommNet specific args
 parser.add_argument('--commnet', action='store_true', default=False,
                     help="enable commnet model")
-parser.add_argument('--ic3net', action='store_true', default=False,
+parser.add_argument('--ic3net', action='store_true', default=True,
                     help="enable commnet model")
 parser.add_argument('--nagents', type=int, default=2,
                     help="Number of agents (used in multiagent)")
@@ -95,7 +95,7 @@ parser.add_argument('--mean_ratio', default=1.0, type=float,
                     help='how much coooperative to do? 1.0 means fully cooperative')
 parser.add_argument('--rnn_type', default='MLP', type=str,
                     help='type of rnn to use. [LSTM|MLP]')
-parser.add_argument('--detach_gap', default=10000, type=int,
+parser.add_argument('--detach_gap', default=10, type=int,
                     help='detach hidden state and cell state for rnns at this interval.'
                     + ' Default 10000 (very high)')
 parser.add_argument('--comm_init', default='uniform', type=str,
