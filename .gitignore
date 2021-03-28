@@ -4,5 +4,4 @@ agents/__pycache__/
 envs/__pycache__/
 output/log/
 *.pyc
-*.ini
 *.log
