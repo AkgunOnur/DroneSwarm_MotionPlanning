@@ -1,5 +1,8 @@
-sac_discrete/__pycache__/
-sac_discrete/agent/__pycache__/
-sac_discrete/memory/__pycache__/
+.ipynb_checkpoints/
 __pycache__/
+agents/__pycache__/
+envs/__pycache__/
+output/log/
 *.pyc
+*.ini
+*.log
