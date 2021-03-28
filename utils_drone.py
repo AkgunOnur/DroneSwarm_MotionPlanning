@@ -212,10 +212,10 @@ class Trainer():
         return ob, done, R
 
     def run(self):
-        N_episode = 100
+        N_episode = 10000
         best_reward_train = -np.Inf
         best_reward_test = -np.Inf
-        eval_period = 1
+        eval_period = 50
         # while not self.global_counter.should_stop():
         for episode in range(N_episode):
             # np.random.seed(self.env.seed)
