@@ -1,2 +1,5 @@
- __pycache__/
- *.pyc
+sac_discrete/__pycache__/
+sac_discrete/agent/__pycache__/
+sac_discrete/memory/__pycache__/
+__pycache__/
+*.pyc

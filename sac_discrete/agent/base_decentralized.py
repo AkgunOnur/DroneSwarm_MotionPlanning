@@ -244,20 +244,23 @@ class BaseAgent_Decentralized(ABC):
         iteration_steps = 1
         episode_return = np.zeros(self.env.n_agents)
         done = False
-        pos_list = [[] for i in range(self.env.n_agents)]
+        pos_list = np.zeros((3, max_iteration, self.env.n_agents))
 
-        while iteration_steps <= max_iteration:
+        while iteration_steps < max_iteration:
             action = np.zeros(self.env.n_agents)
             for agent_ind in range(self.env.n_agents):
                 action[agent_ind] = self.explore(agent_ind, agent_obs, self.device)
 
             next_agent_obs, reward, done, _ = self.env.step(action, iteration_steps, self.is_centralized)
-            iteration_steps += 1
             episode_return += reward
             agent_obs = next_agent_obs
 
             for i in range(self.env.n_agents):
-                pos_list[i].append(self.env.quadrotors[i].state[0:3])
+                # print ("state {0}: X:{1:.3}, Y:{2:.3}, Z:{3:.3}".format(i+1, self.env.quadrotors[i].state[0], 
+                #                                                 self.env.quadrotors[i].state[1],self.env.quadrotors[i].state[2] ))
+                pos_list[:, iteration_steps, i] = self.env.quadrotors[i].state[0:3]
+
+            iteration_steps += 1
 
         return next_agent_obs, np.sum(episode_return), done
 
