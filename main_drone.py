@@ -19,8 +19,8 @@ from utils_drone import (Counter, Trainer, Tester, Evaluator,
 
 
 def parse_args():
-    default_base_dir = './output'
-    default_config_dir = './config/config_drone.ini'
+    default_base_dir = '/okyanus/users/deepdrone/motion_planning/DroneSwarm_MP_Neurcomm/output'
+    default_config_dir = '/okyanus/users/deepdrone/motion_planning/DroneSwarm_MP_Neurcomm/config/config_drone.ini'
     parser = argparse.ArgumentParser()
     parser.add_argument('--base-dir', type=str, required=False,
                         default=default_base_dir, help="experiment base dir")
@@ -113,7 +113,6 @@ def train(args):
 
     # save model
     final_step = global_counter.cur_step
-    model.save(dirs['model'], final_step)
     # summary_writer.close()
 
 
