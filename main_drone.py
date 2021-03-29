@@ -96,19 +96,19 @@ def train(args):
                                 visualization=visualization, is_centralized=is_centralized)
 
     # init step counter
-    total_step = int(config.getfloat('TRAIN_CONFIG', 'total_step'))
-    test_step = int(config.getfloat('TRAIN_CONFIG', 'test_interval'))
-    log_step = int(config.getfloat('TRAIN_CONFIG', 'log_interval'))
+    total_step = 100000 #int(config.getfloat('TRAIN_CONFIG', 'total_step'))
+    test_step = 1000 #int(config.getfloat('TRAIN_CONFIG', 'test_interval'))
+    log_step = 100 #int(config.getfloat('TRAIN_CONFIG', 'log_interval'))
     global_counter = Counter(total_step, test_step, log_step)
 
     # init centralized or multi agent
     seed = config.getint('ENV_CONFIG', 'seed')
     model = init_agent(env, config['MODEL_CONFIG'], total_step, seed)
-    model.load(dirs['model'], train_mode=True)
+    model.load_model(dirs['model'], epoch=8797, save_type="train")
 
     # disable multi-threading for safe SUMO implementation
     # summary_writer = SummaryWriter(dirs['log'], flush_secs=10000)
-    trainer = Trainer(env, model, global_counter, output_path=dirs['data'], model_path=dirs['model'])
+    trainer = Trainer(env, model, global_counter, output_path=dirs['data'], model_path=dirs['new_model'])
     trainer.run()
 
     # save model

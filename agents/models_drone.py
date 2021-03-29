@@ -93,11 +93,34 @@ class IA2C:
         for i in range(self.n_agent):
             self.policy[i]._reset()
 
-    def save(self, model_dir, episode, save_type):
+    def load_model(self, model_dir, epoch=None, save_type="train"):
+        save_file = None
+        save_step = 0
+        if os.path.exists(model_dir):
+            if epoch is not None:
+                save_file = 'model_{:s}_{:d}.pt'.format(save_type, epoch)
+                file_path = model_dir + save_file
+
+        if os.path.exists(file_path):
+            checkpoint = torch.load(file_path)
+            # logging.info('Checkpoint loaded: {}'.format(file_path))
+            self.policy.load_state_dict(checkpoint['model_state_dict'])
+            print ("{:s} is successfully loaded!".format(save_file))
+            if save_type == "train":
+                self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                self.policy.train()
+            else:
+                self.policy.eval()
+            return True
+        # logging.error('Can not find checkpoint for {}'.format(model_dir))
+        return False
+
+    def save(self, model_dir, episode, save_type, reward):
         file_path = model_dir + "model_{:s}_{:d}.pt".format(save_type, episode)
         torch.save({'global_step': episode,
                     'model_state_dict': self.policy.state_dict(),
-                    'optimizer_state_dict': self.optimizer.state_dict()},
+                    'optimizer_state_dict': self.optimizer.state_dict(),
+                    'reward': reward},
                     file_path)
         # logging.info('Checkpoint saved: {}'.format(file_path))
         

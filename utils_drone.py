@@ -26,7 +26,7 @@ def find_file(cur_dir, suffix='.ini'):
     return None
 
 
-def init_dir(base_dir, pathes=['log', 'data', 'model']):
+def init_dir(base_dir, pathes=['log', 'data', 'model', 'new_model']):
     if not os.path.exists(base_dir):
         os.mkdir(base_dir)
     dirs = {}
@@ -212,7 +212,7 @@ class Trainer():
         return ob, done, R
 
     def run(self):
-        N_episode = 10000
+        N_episode = 100000
         best_reward_train = -np.Inf
         best_reward_test = -np.Inf
         eval_period = 50
@@ -237,7 +237,7 @@ class Trainer():
             if mean_reward > best_reward_train:
                 print ("Better reward value in Train mode is obtained! The model is being saved!")
                 best_reward_train = mean_reward 
-                self.model.save(self.model_path, episode, "train")
+                self.model.save(self.model_path, episode, "train", mean_reward)
 
             if episode % eval_period == 0:
                 self.env.train_mode = False
@@ -246,7 +246,7 @@ class Trainer():
                 if mean_reward > best_reward_test:
                     print ("Better reward value in Test mode is obtained! The model is being saved!")
                     best_reward_test = mean_reward
-                    self.model.save(self.model_path, episode, "test")
+                    self.model.save(self.model_path, episode, "test", mean_reward)
                     
 
             # self._log_episode(global_step, mean_reward, std_reward)
