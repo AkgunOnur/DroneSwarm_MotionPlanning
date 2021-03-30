@@ -5,8 +5,8 @@ import argparse
 
 import numpy as np
 import torch
-import visdom
-import data
+#import visdom
+#import data
 from models_drone import *
 from comm_drone import CommNetMLP
 from utils import *
@@ -210,8 +210,8 @@ log['value_loss'] = LogField(list(), True, 'epoch', 'num_steps')
 log['action_loss'] = LogField(list(), True, 'epoch', 'num_steps')
 log['entropy'] = LogField(list(), True, 'epoch', 'num_steps')
 
-if args.plot:
-    vis = visdom.Visdom(env=args.plot_env)
+#if args.plot:
+#vis = visdom.Visdom(env=args.plot_env)
 
 def run(num_epochs):
     # load("./model/model_train_0.pt")
