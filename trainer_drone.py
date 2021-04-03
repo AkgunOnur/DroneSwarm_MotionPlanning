@@ -6,6 +6,7 @@ from torch import optim
 import torch.nn as nn
 from utils import *
 from action_utils import *
+import pickle
 
 Transition = namedtuple('Transition', ('state', 'action', 'action_out', 'value', 'episode_mask', 'episode_mini_mask', 'next_state',
                                        'reward', 'misc'))
@@ -13,6 +14,7 @@ Transition = namedtuple('Transition', ('state', 'action', 'action_out', 'value',
 
 class Trainer(object):
     def __init__(self, args, policy_net, env, is_centralized = False):
+        np.set_printoptions(precision=2)
         self.args = args
         self.policy_net = policy_net
         self.env = env
@@ -73,7 +75,7 @@ class Trainer(object):
             action = select_action(self.args, action_out)
             action, actual = translate_action(self.args, self.env, action)
             next_state, reward, done, info = self.env.step(action, t, self.is_centralized)
-            print ("Episode/Iteration: {0}/{1}, Actions: {2}, Rewards: {3}".format(epoch, t, action[0], reward))
+            print ("T-Episode/Iteration: {0}/{1}, Actions: {2}, Rewards: {3}".format(epoch+1, t+1, action[0], reward))
 
             # store comm_action in info for next step
             if self.args.hard_attn and self.args.commnet:
@@ -189,11 +191,6 @@ class Trainer(object):
         if self.args.normalize_rewards:
             advantages = (advantages - advantages.mean()) / advantages.std()
         
-        # print ("advantages: ", advantages.size())
-        # print ("advantages: ", advantages.view(-1).size())
-        # print ("action_out: ", action_out[0].size())
-        # print ("dim_actions: ", dim_actions)
-
         if self.args.continuous:
             action_means, action_log_stds, action_stds = action_out
             log_prob = normal_log_density(actions, action_means, action_log_stds, action_stds)
@@ -272,6 +269,158 @@ class Trainer(object):
         self.optimizer.step()
 
         return stat
+
+    def state_dict(self):
+        return self.optimizer.state_dict()
+
+    def load_state_dict(self, state):
+        self.optimizer.load_state_dict(state)
+
+
+class Tester(object):
+    def __init__(self, args, policy_net, env, is_centralized = False):
+        np.set_printoptions(precision=2)
+        self.args = args
+        self.policy_net = policy_net
+        self.env = env
+        self.is_centralized = is_centralized
+        self.display = False
+        self.last_step = False
+        self.optimizer = optim.RMSprop(policy_net.parameters(),
+            lr = args.lrate, alpha=0.97, eps=1e-6)
+        self.params = [p for p in self.policy_net.parameters()]
+        self.num_inputs = 294
+
+
+    def get_episode(self, epoch, N_iteration):
+        episode = []
+        pos_list = np.zeros((3, N_iteration, self.env.n_agents))
+        reset_args = getargspec(self.env.reset).args
+        if 'epoch' in reset_args:
+            state = self.env.reset(epoch)
+        else:
+            state = self.env.reset()
+        should_display = self.display and self.last_step
+
+        # if should_display:
+        #     self.env.display()
+        stat = dict()
+        info = dict()
+        switch_t = -1
+
+        prev_hid = torch.zeros(1, self.args.nagents, self.args.hid_size)
+
+        for t in range(N_iteration):
+            misc = dict()
+            if t == 0 and self.args.hard_attn and self.args.commnet:
+                info['comm_action'] = np.zeros(self.args.nagents, dtype=int)
+
+            state = torch.DoubleTensor(state)
+            state = state.view(self.args.nagents, state.size(-3), state.size(-2), state.size(-1))
+            # state = state.view(-1, self.args.nagents, state.size(-3), state.size(-2), state.size(-1))
+
+            # recurrence over time
+            if self.args.recurrent:
+                if self.args.rnn_type == 'LSTM' and t == 0:
+                    prev_hid = self.policy_net.init_hidden(batch_size=1)
+
+                x = [state, prev_hid]
+                action_out, value, prev_hid = self.policy_net(x, info)
+                
+
+                if (t + 1) % self.args.detach_gap == 0:
+                    if self.args.rnn_type == 'LSTM':
+                        prev_hid = (prev_hid[0].detach(), prev_hid[1].detach())
+                    else:
+                        prev_hid = prev_hid.detach()
+            else:
+                x = state
+                action_out, value = self.policy_net(x, info)
+
+            action = select_action(self.args, action_out)
+            action, actual = translate_action(self.args, self.env, action)
+            next_state, reward, done, info = self.env.step(action, t, self.is_centralized)
+            print ("E-Episode/Iteration: {0}/{1}, Actions: {2}, Rewards: {3}".format(epoch+1, t+1, action[0], reward))
+
+            for j in range(self.env.n_agents):
+                # print ("state {0}: X:{1:.3}, Y:{2:.3}, Z:{3:.3}".format(i+1, self.env.quadrotors[i].state[0], 
+                #                                                 self.env.quadrotors[i].state[1],self.env.quadrotors[i].state[2] ))
+                pos_list[:, t, j] = self.env.quadrotors[j].state[0:3]
+
+            # store comm_action in info for next step
+            if self.args.hard_attn and self.args.commnet:
+                info['comm_action'] = action[-1] if not self.args.comm_action_one else np.ones(self.args.nagents, dtype=int)
+
+                stat['comm_action'] = stat.get('comm_action', 0) + info['comm_action'][:self.args.nfriendly]
+                if hasattr(self.args, 'enemy_comm') and self.args.enemy_comm:
+                    stat['enemy_comm']  = stat.get('enemy_comm', 0)  + info['comm_action'][self.args.nfriendly:]
+
+
+            if 'alive_mask' in info:
+                misc['alive_mask'] = info['alive_mask'].reshape(reward.shape)
+            else:
+                misc['alive_mask'] = np.ones_like(reward)
+
+            # env should handle this make sure that reward for dead agents is not counted
+            # reward = reward * misc['alive_mask']
+
+            stat['reward'] = stat.get('reward', 0) + reward[:self.args.nfriendly]
+            if hasattr(self.args, 'enemy_comm') and self.args.enemy_comm:
+                stat['enemy_reward'] = stat.get('enemy_reward', 0) + reward[self.args.nfriendly:]
+
+            episode_mask = np.ones(reward.shape)
+            episode_mini_mask = np.ones(reward.shape)
+
+            # if done:
+            #     episode_mask = np.zeros(reward.shape)
+            # else:
+            #     if 'is_completed' in info:
+            #         episode_mini_mask = 1 - info['is_completed'].reshape(-1)
+
+            # if should_display:
+            #     self.env.display()
+
+            # trans = Transition(state, action, action_out, value, episode_mask, episode_mini_mask, next_state, reward, misc)
+            # episode.append(trans)
+            state = next_state
+            
+            # if done:
+            #     break
+        stat['num_steps'] = t + 1
+        stat['steps_taken'] = stat['num_steps']
+
+        if hasattr(self.env, 'reward_terminal'):
+            reward = self.env.reward_terminal()
+            # We are not multiplying in case of reward terminal with alive agent
+            # If terminal reward is masked environment should do
+            # reward = reward * misc['alive_mask']
+
+            episode[-1] = episode[-1]._replace(reward = episode[-1].reward + reward)
+            stat['reward'] = stat.get('reward', 0) + reward[:self.args.nfriendly]
+            if hasattr(self.args, 'enemy_comm') and self.args.enemy_comm:
+                stat['enemy_reward'] = stat.get('enemy_reward', 0) + reward[self.args.nfriendly:]
+
+
+        if hasattr(self.env, 'get_stat'):
+            merge_stat(self.env.get_stat(), stat)
+        return pos_list, stat
+
+    def test_batch(self, epoch, save=True):
+        batch = []
+        N_epoch = 1
+        if save:
+            N_iteration = 7500
+        else:
+            N_iteration = 1000
+        total_pos_list = []
+        for epoch in range(N_epoch):
+            pos_list, stat = self.get_episode(epoch, N_iteration)
+            if save:
+                total_pos_list.append(pos_list)
+                with open('agents_positions.pkl', 'wb') as f:
+                    pickle.dump(total_pos_list, f)
+            else:
+                return stat
 
     def state_dict(self):
         return self.optimizer.state_dict()

@@ -5,13 +5,13 @@ import argparse
 
 import numpy as np
 import torch
-#import visdom
-#import data
+# import visdom
+# import data
 from models_drone import *
 from comm_drone import CommNetMLP
 from utils import *
 from action_utils import parse_action_args
-from trainer_drone import Trainer
+from trainer_drone import Trainer, Tester
 from multi_processing import MultiProcessTrainer
 from point_mass_formation import QuadrotorFormation
 
@@ -79,6 +79,8 @@ parser.add_argument('--random', action='store_true', default=False,
                     help="enable random model")
 
 # CommNet specific args
+parser.add_argument('--mode',  default="Train",
+                    help="Train or Test mode")
 parser.add_argument('--commnet', action='store_true', default=False,
                     help="enable commnet model")
 parser.add_argument('--ic3net', action='store_true', default=True,
@@ -122,6 +124,16 @@ if args.ic3net:
     # importance of individual rewards even in cooperative games
     if args.env_name == "traffic_junction":
         args.comm_action_one = True
+
+# env = data.init(args.env_name, args, False)
+n_agents = 5
+args.nagents = n_agents
+N_frame = 5
+visualization = False
+is_centralized = False
+env = QuadrotorFormation(n_agents=n_agents, N_frame=N_frame,
+                             visualization=visualization, is_centralized=is_centralized)
+
 # Enemy comm
 args.nfriendly = args.nagents
 if hasattr(args, 'enemy_comm') and args.enemy_comm:
@@ -130,15 +142,7 @@ if hasattr(args, 'enemy_comm') and args.enemy_comm:
     else:
         raise RuntimeError("Env. needs to pass argument 'nenemy'.")
 
-# env = data.init(args.env_name, args, False)
-n_agents = 2
-N_frame = 5
-visualization = False
-is_centralized = False
-env = QuadrotorFormation(n_agents=n_agents, N_frame=N_frame,
-                             visualization=visualization, is_centralized=is_centralized)
-
-num_inputs = env.observation_dim
+# num_inputs = env.observation_dim
 args.num_actions = env.n_action
 args.naction_heads = env.n_action
 
@@ -146,7 +150,7 @@ args.naction_heads = env.n_action
 if not isinstance(args.num_actions, (list, tuple)): # single action case
     args.num_actions = [args.num_actions]
 args.dim_actions = env.dim_actions
-args.num_inputs = num_inputs
+# args.num_inputs = num_inputs
 
 # Hard attention
 if args.hard_attn and args.commnet:
@@ -170,13 +174,13 @@ torch.manual_seed(args.seed)
 
 
 if args.commnet:
-    policy_net = CommNetMLP(args, num_inputs)
+    policy_net = CommNetMLP(args, n_agents)
 elif args.random:
-    policy_net = Random(args, num_inputs)
+    policy_net = Random(args, n_agents)
 elif args.recurrent:
-    policy_net = RNN(args, num_inputs)
+    policy_net = RNN(args, n_agents)
 else:
-    policy_net = MLP(args, num_inputs)
+    policy_net = MLP(args, n_agents)
 
 if not args.display:
     display_models([policy_net])
@@ -191,6 +195,7 @@ if args.nprocesses > 1:
     trainer = MultiProcessTrainer(args, lambda: Trainer(args, policy_net, env, is_centralized))
 else:
     trainer = Trainer(args, policy_net, env, is_centralized)
+    tester = Tester(args, policy_net, env, is_centralized)
 
 disp_trainer = Trainer(args, policy_net, env)
 disp_trainer.display = True
@@ -210,10 +215,10 @@ log['value_loss'] = LogField(list(), True, 'epoch', 'num_steps')
 log['action_loss'] = LogField(list(), True, 'epoch', 'num_steps')
 log['entropy'] = LogField(list(), True, 'epoch', 'num_steps')
 
-#if args.plot:
-#vis = visdom.Visdom(env=args.plot_env)
+# if args.plot:
+#     vis = visdom.Visdom(env=args.plot_env)
 
-def run(num_epochs):
+def train_run(num_epochs):
     # load("./model/model_train_0.pt")
     best_reward_train = -np.Inf
     best_reward_test = -np.Inf
@@ -268,12 +273,16 @@ def run(num_epochs):
         if mean_reward > best_reward_train:
             print ("Better reward value in Train mode is obtained! The model is being saved!")
             best_reward_train = mean_reward 
-            save(args.save, ep, "train")
-        else:
-            if (ep + 1) % eval_period == 0:
+            save(args.save, ep+1, "train")
+
+        if (ep + 1) % eval_period == 0:
+            print ("\n In eval mode")
+            test_stat = tester.test_batch(1, save=False)
+            test_reward = np.mean(test_stat["reward"])
+            if test_reward > best_reward_test:
                 print ("The model is being saved!")
                 best_reward_test = mean_reward
-                save(args.save, ep, "test")
+                save(args.save, ep+1, "test")
 
         # if args.save != '':
         #     save(args.save)
@@ -304,7 +313,11 @@ signal.signal(signal.SIGINT, signal_handler)
 if args.load != '':
     load(args.load)
 
-run(args.num_epochs)
+if args.mode == "Train":
+    train_run(args.num_epochs)
+else:
+    tester.test_batch(1)
+
 if args.display:
     env.end_display()
 

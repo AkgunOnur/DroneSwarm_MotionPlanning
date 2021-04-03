@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from models import MLP
+from models_drone import MLP
 from action_utils import select_action, translate_action
 
 def initialize_weights_he(m):
@@ -20,14 +20,14 @@ class CommNetMLP(nn.Module):
     MLP based CommNet. Uses communication vector to communicate info
     between agents
     """
-    def __init__(self, args, num_inputs):
+    def __init__(self, args, n_agents):
         """Initialization method for this class, setup various internal networks
         and weights
 
         Arguments:
             MLP {object} -- Self
             args {Namespace} -- Parse args namespace
-            num_inputs {number} -- Environment observation dimension for agents
+            n_agents {number} -- Number of agents
         """
 
         super(CommNetMLP, self).__init__()
@@ -37,8 +37,8 @@ class CommNetMLP(nn.Module):
         self.comm_passes = args.comm_passes
         self.recurrent = args.recurrent
 
-        self.num_inputs = 294
-        self.num_channels = 16
+        self.num_inputs = 6*7*7
+        self.num_channels = (n_agents + 1)*5 + 1
         self.net = nn.Sequential(
             nn.Conv2d(self.num_channels, 3, 3, 2),        
             nn.ReLU(),

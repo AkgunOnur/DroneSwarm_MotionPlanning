@@ -15,10 +15,10 @@ class Flatten(nn.Module):
         return x.view(x.size(0), -1)
 
 class MLP(nn.Module):
-    def __init__(self, args, num_inputs):
+    def __init__(self, args, n_agents):
         super(MLP, self).__init__()
-        self.num_inputs = 294
-        self.num_channels = 16
+        self.num_inputs = 6*7*7
+        self.num_channels = (n_agents + 1)*5 + 1
         self.net = nn.Sequential(
             nn.Conv2d(self.num_channels, 3, 3, 2),        
             nn.ReLU(),
@@ -59,7 +59,7 @@ class MLP(nn.Module):
 
 
 class Random(nn.Module):
-    def __init__(self, args, num_inputs):
+    def __init__(self, args, n_agents):
         super(Random, self).__init__()
         self.naction_heads = args.naction_heads
 
@@ -81,8 +81,8 @@ class Random(nn.Module):
 
 
 class RNN(MLP):
-    def __init__(self, args, num_inputs):
-        super(RNN, self).__init__(args, num_inputs)
+    def __init__(self, args, n_agents):
+        super(RNN, self).__init__(args, n_agents)
         self.nagents = self.args.nagents
         self.hid_size = self.args.hid_size
         
