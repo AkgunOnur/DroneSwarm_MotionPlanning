@@ -28,7 +28,7 @@ class QuadrotorFormation(gym.Env):
         self.n_action = 6
         self.observation_dim = 4
         self.dim_actions = 1
-        self.n_agent = n_agents
+        self.n_agents = n_agents
         self.visualization = visualization
         self.is_centralized = is_centralized
         self.action_dict = {0:"Xp", 1:"Xn", 2:"Yp", 3:"Yn", 4:"Zp", 5:"Zn"}
@@ -37,12 +37,12 @@ class QuadrotorFormation(gym.Env):
         self.viewer = None
         self.dtau = 1e-3
         
-        self.neighbor_mask = np.zeros((self.n_agent, self.n_agent)).astype(int)
-        self.distance_mask = np.zeros((self.n_agent, self.n_agent)).astype(int)
+        self.neighbor_mask = np.zeros((self.n_agents, self.n_agents)).astype(int)
+        self.distance_mask = np.zeros((self.n_agents, self.n_agents)).astype(int)
         self.n_a = 4
-        self.fp = np.ones((self.n_agent, self.n_a)) / self.n_a
+        self.fp = np.ones((self.n_agents, self.n_a)) / self.n_a
         self.n_s_ls = []
-        self.n_a_ls = [4] * self.n_agent
+        self.n_a_ls = [4] * self.n_agents
         self.dt = 5
         self.T = int(3600 / self.dt)
         self.batch_size = 120
@@ -65,7 +65,7 @@ class QuadrotorFormation(gym.Env):
         self.coop_gamma = -1
         self.seed = 12
 
-        for i in range(self.n_agent):
+        for i in range(self.n_agents):
             if self.agent.startswith('ma2c'):
                 num_n = 1
             else:
@@ -73,7 +73,7 @@ class QuadrotorFormation(gym.Env):
             self.n_s_ls.append(num_n * 5)
 
         if self.is_centralized:
-            self.action_space = spaces.Discrete(self.n_action**self.n_agent)
+            self.action_space = spaces.Discrete(self.n_action**self.n_agents)
         else:
             self.action_space = spaces.Discrete(self.n_action)
 
@@ -104,7 +104,7 @@ class QuadrotorFormation(gym.Env):
         self.N_frame = N_frame # Number of frames to be stacked
         self.frame_update_iter = 2
         self.iteration = None
-        self.agents_stacks = [deque([],maxlen=self.N_frame) for _ in range(self.n_agent)]
+        self.agents_stacks = [deque([],maxlen=self.N_frame) for _ in range(self.n_agents)]
         self.uncertainty_stacks = deque([],maxlen=self.N_frame)
         self.obstacles_stack = None
 
@@ -127,25 +127,25 @@ class QuadrotorFormation(gym.Env):
         max_distance = 5.0
         min_distance = 0.5
         done = False
-        reward_list = np.zeros(self.n_agent)
+        reward_list = np.zeros(self.n_agents)
         uncertainty_limit = 0.25
         collision_reward = -10.0
         N_overvisit = 15.0
-        obstacle_collision = np.zeros(self.n_agent)
+        obstacle_collision = np.zeros(self.n_agents)
         total_explored_indices = []
-        for i in range(self.n_agent):
+        for i in range(self.n_agents):
             total_explored_indices.append([])
 
         if is_centralized:
             agents_actions = self.action_list[action]
         else:
-            agents_actions = np.reshape(action, (self.n_agent,))
+            agents_actions = np.reshape(action, (self.n_agents,))
         
-        drone_current_pos = np.array([[self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2]] for i in range(self.n_agent)])    
+        drone_current_pos = np.array([[self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2]] for i in range(self.n_agents)])    
         drone_init_pos = np.copy(drone_current_pos)    
 
         # print ("\n")
-        for agent_ind in range(self.n_agent):
+        for agent_ind in range(self.n_agents):
             current_action = agents_actions[agent_ind]
             drone_prev_state, drone_current_state = self.get_drone_des_grid(agent_ind, current_action)
             current_pos = [drone_current_state[0],drone_current_state[1],drone_current_state[2]]
@@ -171,7 +171,7 @@ class QuadrotorFormation(gym.Env):
             reward_list[agent_ind] += np.sum(self.uncertainty_values[explored_indices]) # max value will be neighbour_grids(=14)
 
 
-        for agent_ind in range(self.n_agent):
+        for agent_ind in range(self.n_agents):
             if obstacle_collision[agent_ind] == 1:
                 continue
             else:
@@ -192,8 +192,8 @@ class QuadrotorFormation(gym.Env):
                     neg_reward = np.sum(np.clip(self.grid_visits[overexplored_indices] / N_overvisit, 0.0, 1.0))
                     reward_list[agent_ind] -= neg_reward
 
-                drone_distances = np.zeros(self.n_agent - 1)
-                for agent_other_ind in range(self.n_agent):
+                drone_distances = np.zeros(self.n_agents - 1)
+                for agent_other_ind in range(self.n_agents):
                     if agent_ind != agent_other_ind:
                         state_difference = self.quadrotors[agent_ind].state - self.quadrotors[agent_other_ind].state
                         drone_distance = np.sqrt(state_difference[0]**2 + state_difference[1]**2 + state_difference[2]**2)
@@ -247,9 +247,9 @@ class QuadrotorFormation(gym.Env):
             self.uncertainty_stacks.append(uncertainty_map)
 
         
-        conv_stack = np.zeros((self.N_frame*(self.n_agent+1)+1, self.out_shape, self.out_shape))
-        obs_stack = np.zeros((self.n_agent, self.N_frame*(self.n_agent+1)+1, self.out_shape, self.out_shape))
-        for agent_ind in range(self.n_agent):
+        conv_stack = np.zeros((self.N_frame*(self.n_agents+1)+1, self.out_shape, self.out_shape))
+        obs_stack = np.zeros((self.n_agents, self.N_frame*(self.n_agents+1)+1, self.out_shape, self.out_shape))
+        for agent_ind in range(self.n_agents):
             for frame_ind in range(self.N_frame):
                 # agent_ind = 0, 0 1 2 3 4
                 # agent_ind = 1, 5 6 7 8 9
@@ -257,11 +257,11 @@ class QuadrotorFormation(gym.Env):
 
         # uncertainty_stack 10 11 12 13 14
         for frame_ind in range(self.N_frame):
-            conv_stack[self.N_frame*(self.n_agent)+frame_ind,:,:] = np.copy(self.uncertainty_stacks[frame_ind])
+            conv_stack[self.N_frame*(self.n_agents)+frame_ind,:,:] = np.copy(self.uncertainty_stacks[frame_ind])
 
         conv_stack[-1,:,:] = np.copy(self.obstacles_stack)
 
-        for i in range(self.n_agent):
+        for i in range(self.n_agents):
             obs_stack[i,:,:,:] = np.copy(conv_stack)
 
         return obs_stack
@@ -271,7 +271,7 @@ class QuadrotorFormation(gym.Env):
         self.quadrotors = []
         self.uncertainty_values = uniform(low=0.99, high=1.0, size=(self.uncertainty_grids.shape[0],))
         self.grid_visits = np.zeros((self.uncertainty_grids.shape[0], ))
-        self.agents_stacks = [deque([],maxlen=self.N_frame) for _ in range(self.n_agent)]
+        self.agents_stacks = [deque([],maxlen=self.N_frame) for _ in range(self.n_agents)]
         self.uncertainty_stacks = deque([],maxlen=self.N_frame)
         
         self.iteration = 1
@@ -303,9 +303,9 @@ class QuadrotorFormation(gym.Env):
         # state0 = [7.0, 8.5, 4.0, 0., 0., 0., 0., 0., 0., 0., 0., 0.]
         # self.quadrotors.append(Quadrotor(state0))
 
-        # drone_current_pos = np.array([[self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2]] for i in range(self.n_agent)])
+        # drone_current_pos = np.array([[self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2]] for i in range(self.n_agents)])
 
-        # for i in range(self.n_agent):
+        # for i in range(self.n_agents):
         #     current_pos = [drone_current_pos[i,0],drone_current_pos[i,1],drone_current_pos[i,2]]
 
         #     differences = current_pos - self.uncertainty_grids
@@ -325,7 +325,7 @@ class QuadrotorFormation(gym.Env):
         for j in range(self.N_frame):
             self.uncertainty_stacks.append(uncertainty_map)
 
-        for agent_ind in range(0, self.n_agent):
+        for agent_ind in range(0, self.n_agents):
             total_indices = np.arange(self.uncertainty_grids.shape[0])
             safe_indices = np.setdiff1d(total_indices, self.obstacle_indices)
             closest_grid = np.random.choice(safe_indices)
@@ -466,21 +466,21 @@ class QuadrotorFormation(gym.Env):
             self.drone_transforms = []
             self.drones = []
 
-            for i in range(self.n_agent):
+            for i in range(self.n_agents):
                 self.drone_transforms.append(rendering.Transform())
                 self.drones.append(rendering.Image(fname, 2., 2.))
                 self.drones[i].add_attr(self.drone_transforms[i])
 
         
         
-        for i in range(self.n_agent):
+        for i in range(self.n_agents):
             self.viewer.add_onetime(self.drones[i])
             self.drone_transforms[i].set_translation(self.quadrotors[i].state[0], self.quadrotors[i].state[1])
             self.drone_transforms[i].set_rotation(self.quadrotors[i].state[5])
 
         # N_max = np.max([len(agent_pos_dict[i]) for i in agent_pos_dict.keys()])
 
-        # for i in range(self.n_agent):
+        # for i in range(self.n_agents):
         #     self.viewer.add_onetime(self.drones[i])
         #     for j in range(N_max):
         #         if j < len(agent_pos_dict[i]):

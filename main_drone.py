@@ -21,13 +21,15 @@ from utils_drone import (Counter, Trainer, Tester, Evaluator,
 def parse_args():
     default_base_dir = '/okyanus/users/deepdrone/motion_planning/DroneSwarm_MP_Neurcomm/output'
     default_config_dir = '/okyanus/users/deepdrone/motion_planning/DroneSwarm_MP_Neurcomm/config/config_drone.ini'
+    # default_base_dir = './output'
+    # default_config_dir = './config/config_drone.ini'
     parser = argparse.ArgumentParser()
     parser.add_argument('--base-dir', type=str, required=False,
                         default=default_base_dir, help="experiment base dir")
+    parser.add_argument('--config-dir', type=str, required=False,
+                    default=default_config_dir, help="experiment config path")
     subparsers = parser.add_subparsers(dest='option', help="train or evaluate")
     sp = subparsers.add_parser('train', help='train a single agent under base dir')
-    sp.add_argument('--config-dir', type=str, required=False,
-                    default=default_config_dir, help="experiment config path")
     sp = subparsers.add_parser('evaluate', help="evaluate and compare agents under base dir")
     sp.add_argument('--evaluation-seeds', type=str, required=False,
                     default=','.join([str(i) for i in range(2000, 2500, 10)]),
@@ -52,25 +54,25 @@ def init_env(config, port=0):
         return CACCEnv(config)
 
 
-def init_agent(env, config, total_step, seed):
+def init_agent(n_agents, env, config, total_step, seed):
     if env.agent == 'ia2c':
-        return IA2C(env.n_s_ls, env.n_a_ls, env.neighbor_mask, env.distance_mask, env.coop_gamma,
+        return IA2C(n_agents, env.n_s_ls, env.n_a_ls, env.neighbor_mask, env.distance_mask, env.coop_gamma,
                     total_step, config, seed=seed)
     elif env.agent == 'ia2c_fp':
-        return IA2C_FP(env.n_s_ls, env.n_a_ls, env.neighbor_mask, env.distance_mask, env.coop_gamma,
+        return IA2C_FP(n_agents, env.n_s_ls, env.n_a_ls, env.neighbor_mask, env.distance_mask, env.coop_gamma,
                        total_step, config, seed=seed)
     elif env.agent == 'ma2c_nc':
-        return MA2C_NC(env.n_s_ls, env.n_a_ls, env.neighbor_mask, env.distance_mask, env.coop_gamma,
+        return MA2C_NC(n_agents, env.n_s_ls, env.n_a_ls, env.neighbor_mask, env.distance_mask, env.coop_gamma,
                        total_step, config, seed=seed)
     elif env.agent == 'ma2c_cnet':
         # this is actually CommNet
-        return MA2C_CNET(env.n_s_ls, env.n_a_ls, env.neighbor_mask, env.distance_mask, env.coop_gamma,
+        return MA2C_CNET(n_agents, env.n_s_ls, env.n_a_ls, env.neighbor_mask, env.distance_mask, env.coop_gamma,
                          total_step, config, seed=seed)
     elif env.agent == 'ma2c_cu':
-        return IA2C_CU(env.n_s_ls, env.n_a_ls, env.neighbor_mask, env.distance_mask, env.coop_gamma,
+        return IA2C_CU(n_agents, env.n_s_ls, env.n_a_ls, env.neighbor_mask, env.distance_mask, env.coop_gamma,
                        total_step, config, seed=seed)
     elif env.agent == 'ma2c_dial':
-        return MA2C_DIAL(env.n_s_ls, env.n_a_ls, env.neighbor_mask, env.distance_mask, env.coop_gamma,
+        return MA2C_DIAL(n_agents, env.n_s_ls, env.n_a_ls, env.neighbor_mask, env.distance_mask, env.coop_gamma,
                          total_step, config, seed=seed)
     else:
         return None
@@ -88,7 +90,7 @@ def train(args):
     # init env
     # env = init_env(config['ENV_CONFIG'])
     # logging.info('Training: a dim %r, agent dim: %d' % (env.n_a_ls, env.n_agent))
-    n_agents = 2
+    n_agents = 5
     N_frame = 5
     visualization = False
     is_centralized = False
@@ -103,12 +105,12 @@ def train(args):
 
     # init centralized or multi agent
     seed = config.getint('ENV_CONFIG', 'seed')
-    model = init_agent(env, config['MODEL_CONFIG'], total_step, seed)
+    model = init_agent(n_agents, env, config['MODEL_CONFIG'], total_step, seed)
     model.load_model(dirs['model'], epoch=8797, save_type="train")
 
     # disable multi-threading for safe SUMO implementation
     # summary_writer = SummaryWriter(dirs['log'], flush_secs=10000)
-    trainer = Trainer(env, model, global_counter, output_path=dirs['data'], model_path=dirs['new_model'])
+    trainer = Trainer(env, model, global_counter, n_agents, output_path=dirs['data'], model_path=dirs['model'])
     trainer.run()
 
     # save model
@@ -117,30 +119,34 @@ def train(args):
 
 
 def evaluate_fn(agent_dir, output_dir, seeds, port, demo):
-    agent = agent_dir.split('/')[-1]
-    if not check_dir(agent_dir):
-        logging.error('Evaluation: %s does not exist!' % agent)
-        return
-    # load config file 
-    config_dir = find_file(agent_dir + '/data/')
-    if not config_dir:
-        return
+    print ("args: ", args)
+    base_dir = args.base_dir
+    dirs = init_dir(base_dir)
+    config_dir = args.config_dir
+    # copy_file(config_dir, dirs['data'])
     config = configparser.ConfigParser()
     config.read(config_dir)
 
     # init env
-    env = init_env(config['ENV_CONFIG'], port=port)
-    env.init_test_seeds(seeds)
+    n_agents = 5
+    N_frame = 5
+    visualization = False
+    is_centralized = False
+    env = QuadrotorFormation(config=config, n_agents=n_agents, N_frame=N_frame,
+                                visualization=visualization, is_centralized=is_centralized)
+
+    total_step = 100000 #int(config.getfloat('TRAIN_CONFIG', 'total_step'))
+    test_step = 1000 #int(config.getfloat('TRAIN_CONFIG', 'test_interval'))
+    log_step = 100 #int(config.getfloat('TRAIN_CONFIG', 'log_interval'))
+
+    seed = config.getint('ENV_CONFIG', 'seed')
 
     # load model for agent
-    model = init_agent(env, config['MODEL_CONFIG'], 0, 0)
-    if model is None:
-        return
-    model_dir = agent_dir + '/model/'
-    if not model.load(model_dir):
-        return
+    model = init_agent(env, config['MODEL_CONFIG'], total_step, seed)
+    model.load_model(dirs['new_model'], epoch=4822, save_type="train")
+
     # collect evaluation data
-    evaluator = Evaluator(env, model, output_dir, gui=demo)
+    evaluator = Evaluator(env, model, n_agents, output_dir)
     evaluator.run()
 
 

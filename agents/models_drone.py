@@ -19,9 +19,10 @@ class IA2C:
     The basic IA2C implementation with decentralized actor and centralized critic,
     limited to neighborhood area only.
     """
-    def __init__(self, n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
+    def __init__(self, n_agents, n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
                  total_step, model_config, seed=0, use_gpu=False):
         self.name = 'ia2c'
+        self.n_agents = n_agents
         self._init_algo(n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
                         total_step, seed, use_gpu, model_config)
 
@@ -30,12 +31,12 @@ class IA2C:
             reward = reward / self.reward_norm
         if self.reward_clip > 0:
             reward = np.clip(reward, -self.reward_clip, self.reward_clip)
-        for i in range(self.n_agent):
+        for i in range(self.n_agents):
             self.trans_buffer[i].add_transition(ob[i], naction[i], action[i], reward, value[i], done)
 
     def backward(self, Rends, dest, global_step=None):
         self.optimizer.zero_grad()
-        for i in range(self.n_agent):
+        for i in range(self.n_agents):
             obs, nas, acts, dones, Rs, Advs = self.trans_buffer[i].sample_transition(Rends[i], dt)
             if i == 0:
                 self.policy[i].backward(obs, nas, acts, dones, Rs, Advs,
@@ -53,8 +54,8 @@ class IA2C:
     def forward(self, obs, done, nactions=None, out_type='p'):
         out = []
         if nactions is None:
-            nactions = [None] * self.n_agent
-        for i in range(self.n_agent): 
+            nactions = [None] * self.n_agents
+        for i in range(self.n_agents): 
             cur_out = self.policy[i](obs[i], done, nactions[i], out_type)
             out.append(cur_out)
         return out
@@ -90,7 +91,7 @@ class IA2C:
         return False
 
     def reset(self):
-        for i in range(self.n_agent):
+        for i in range(self.n_agents):
             self.policy[i]._reset()
 
     def load_model(self, model_dir, epoch=None, save_type="train"):
@@ -140,7 +141,7 @@ class IA2C:
             self.n_s = max(self.n_s_ls)
             self.n_a = max(self.n_a_ls)
         self.neighbor_mask = neighbor_mask
-        self.n_agent = len(self.neighbor_mask)
+        # self.n_agent = len(self.neighbor_mask)
         self.reward_clip = model_config.getfloat('reward_clip')
         self.reward_norm = model_config.getfloat('reward_norm')
         self.n_step = model_config.getint('batch_size')
@@ -169,16 +170,16 @@ class IA2C:
 
     def _init_policy(self):
         policy = []
-        for i in range(self.n_agent):
+        for i in range(self.n_agents):
             n_n = np.sum(self.neighbor_mask[i])
             if self.identical_agent:
-                local_policy = LstmPolicy(self.n_s_ls[i], self.n_a_ls[i], n_n, self.n_step,
+                local_policy = LstmPolicy(self.n_agents, self.n_s_ls[i], self.n_a_ls[i], n_n, self.n_step,
                                           n_fc=self.n_fc, n_lstm=self.n_lstm, name='{:d}'.format(i))
             else:
                 na_dim_ls = []
                 for j in np.where(self.neighbor_mask[i] == 1)[0]:
                     na_dim_ls.append(self.n_a_ls[j])
-                local_policy = LstmPolicy(self.n_s_ls[i], self.n_a_ls[i], n_n, self.n_step,
+                local_policy = LstmPolicy(self.n_agents, self.n_s_ls[i], self.n_a_ls[i], n_n, self.n_step,
                                           n_fc=self.n_fc, n_lstm=self.n_lstm, name='{:d}'.format(i),
                                           na_dim_ls=na_dim_ls, identical=False)
                 # local_policy.to(self.device)
@@ -213,7 +214,7 @@ class IA2C:
 
     def _init_trans_buffer(self, gamma, distance_mask, coop_gamma):
         self.trans_buffer = []
-        for i in range(self.n_agent):
+        for i in range(self.n_agents):
             # init replay buffer
             self.trans_buffer.append(OnPolicyBuffer(gamma, coop_gamma, distance_mask[i]))
 
@@ -228,36 +229,38 @@ class IA2C_FP(IA2C):
     """
     In fingerprint IA2C, neighborhood policies (fingerprints) are also included.
     """
-    def __init__(self, n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
+    def __init__(self, n_agents, n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
                  total_step, model_config, seed=0, use_gpu=False):
         self.name = 'ia2c_fp'
+        self.n_agents = n_agents
         self._init_algo(n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma, 
                         total_step, seed, use_gpu, model_config)
 
     def _init_policy(self):
         policy = []
-        for i in range(self.n_agent):
+        for i in range(self.n_agents):
             n_n = np.sum(self.neighbor_mask[i])
             # neighborhood policies are included in local state
             if self.identical_agent:
                 n_s1 = int(self.n_s_ls[i] + self.n_a*n_n)
-                policy.append(FPPolicy(n_s1, self.n_a, int(n_n), self.n_step, n_fc=self.n_fc,
+                policy.append(FPPolicy(self.n_agents, n_s1, self.n_a, int(n_n), self.n_step, n_fc=self.n_fc,
                                        n_lstm=self.n_lstm, name='{:d}'.format(i)))
             else:
                 na_dim_ls = []
                 for j in np.where(self.neighbor_mask[i] == 1)[0]:
                     na_dim_ls.append(self.n_a_ls[j])
                 n_s1 = int(self.n_s_ls[i] + sum(na_dim_ls))
-                policy.append(FPPolicy(n_s1, self.n_a_ls[i], int(n_n), self.n_step, n_fc=self.n_fc,
+                policy.append(FPPolicy(self.n_agents, n_s1, self.n_a_ls[i], int(n_n), self.n_step, n_fc=self.n_fc,
                                        n_lstm=self.n_lstm, name='{:d}'.format(i),
                                        na_dim_ls=na_dim_ls, identical=False))
         return nn.ModuleList(policy)
 
 
 class MA2C_NC(IA2C):
-    def __init__(self, n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
+    def __init__(self, n_agents, n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
                  total_step, model_config, seed=0,  use_gpu=False):
         self.name = 'ma2c_nc'
+        self.n_agents = n_agents
         self._init_algo(n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
                         total_step, seed, use_gpu, model_config)
 
@@ -297,19 +300,19 @@ class MA2C_NC(IA2C):
         self.policy._reset()
 
     def _convert_hetero_states(self, ob, p):
-        pad_ob = np.zeros((self.n_agent, self.n_s))
-        pad_p = np.zeros((self.n_agent, self.n_a))
-        for i in range(self.n_agent):
+        pad_ob = np.zeros((self.n_agents, self.n_s))
+        pad_p = np.zeros((self.n_agents, self.n_a))
+        for i in range(self.n_agents):
             pad_ob[i, :len(ob[i])] = ob[i]
             pad_p[i, :len(p[i])] = p[i]
         return pad_ob, pad_p
 
     def _init_policy(self):
         if self.identical_agent:
-            return NCMultiAgentPolicy(self.n_s, self.n_a, self.n_agent, self.n_step,
+            return NCMultiAgentPolicy(self.n_agents, self.n_s, self.n_a, self.n_step,
                                       self.neighbor_mask, n_fc=self.n_fc, n_h=self.n_lstm)
         else:
-            return NCMultiAgentPolicy(self.n_s, self.n_a, self.n_agent, self.n_step,
+            return NCMultiAgentPolicy(self.n_agents, self.n_s, self.n_a, self.n_step,
                                       self.neighbor_mask, n_fc=self.n_fc, n_h=self.n_lstm,
                                       n_s_ls=self.n_s_ls, n_a_ls=self.n_a_ls, identical=False)
 
@@ -318,18 +321,19 @@ class MA2C_NC(IA2C):
 
 
 class IA2C_CU(MA2C_NC):
-    def __init__(self, n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
+    def __init__(self, n_agents, n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
                  total_step, model_config, seed=0, use_gpu=False):
         self.name = 'ma2c_cu'
+        self.n_agents = n_agents
         self._init_algo(n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
                         total_step, seed, use_gpu, model_config)
 
     def _init_policy(self):
         if self.identical_agent:
-            return ConsensusPolicy(self.n_s, self.n_a, self.n_agent, self.n_step,
+            return ConsensusPolicy(self.n_agents, self.n_s, self.n_a, self.n_step,
                                    self.neighbor_mask, n_fc=self.n_fc, n_h=self.n_lstm)
         else:
-            return ConsensusPolicy(self.n_s, self.n_a, self.n_agent, self.n_step,
+            return ConsensusPolicy(self.n_agents, self.n_s, self.n_a, self.n_step,
                                    self.neighbor_mask, n_fc=self.n_fc, n_h=self.n_lstm,
                                    n_s_ls=self.n_s_ls, n_a_ls=self.n_a_ls, identical=False)
 
@@ -339,34 +343,36 @@ class IA2C_CU(MA2C_NC):
 
 
 class MA2C_CNET(MA2C_NC):
-    def __init__(self, n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
+    def __init__(self, n_agents, n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
                  total_step, model_config, seed=0, use_gpu=False):
         self.name = 'ma2c_ic3'
+        self.n_agents = n_agents
         self._init_algo(n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
                         total_step, seed, use_gpu, model_config)
 
     def _init_policy(self):
         if self.identical_agent:
-            return CommNetMultiAgentPolicy(self.n_s, self.n_a, self.n_agent, self.n_step,
+            return CommNetMultiAgentPolicy(self.n_agents, self.n_s, self.n_a, self.n_step,
                                            self.neighbor_mask, n_fc=self.n_fc, n_h=self.n_lstm)
         else:
-            return CommNetMultiAgentPolicy(self.n_s, self.n_a, self.n_agent, self.n_step,
+            return CommNetMultiAgentPolicy(self.n_agents, self.n_s, self.n_a, self.n_step,
                                            self.neighbor_mask, n_fc=self.n_fc, n_h=self.n_lstm,
                                            n_s_ls=self.n_s_ls, n_a_ls=self.n_a_ls, identical=False)
 
 
 class MA2C_DIAL(MA2C_NC):
-    def __init__(self, n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
+    def __init__(self, n_agents, n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
                  total_step, model_config, seed=0, use_gpu=False):
         self.name = 'ma2c_dial'
+        self.n_agents = n_agents
         self._init_algo(n_s_ls, n_a_ls, neighbor_mask, distance_mask, coop_gamma,
                         total_step, seed, use_gpu, model_config)
 
     def _init_policy(self):
         if self.identical_agent:
-            return DIALMultiAgentPolicy(self.n_s, self.n_a, self.n_agent, self.n_step,
+            return DIALMultiAgentPolicy(self.n_agents, self.n_s, self.n_a, self.n_step,
                                         self.neighbor_mask, n_fc=self.n_fc, n_h=self.n_lstm)
         else:
-            return DIALMultiAgentPolicy(self.n_s, self.n_a, self.n_agent, self.n_step,
+            return DIALMultiAgentPolicy(self.n_agents, self.n_s, self.n_a, self.n_step,
                                         self.neighbor_mask, n_fc=self.n_fc, n_h=self.n_lstm,
                                         n_s_ls=self.n_s_ls, n_a_ls=self.n_a_ls, identical=False)

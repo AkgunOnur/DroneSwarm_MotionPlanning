@@ -16,9 +16,10 @@ class Flatten(nn.Module):
 
 
 class Policy(nn.Module):
-    def __init__(self, n_a, n_s, n_step, policy_name, agent_name, identical):
+    def __init__(self, n_agents, n_a, n_s, n_step, policy_name, agent_name, identical):
         super(Policy, self).__init__()
         self.name = policy_name
+        self.n_agents = n_agents
         if agent_name is not None:
             # for multi-agent system
             self.name += '_' + str(agent_name)
@@ -26,8 +27,8 @@ class Policy(nn.Module):
         self.n_s = n_s
         self.n_step = n_step
         self.identical = identical
-        self.num_inputs = 294
-        self.num_channels = 16
+        self.num_inputs = 6*7*7
+        self.num_channels = (self.n_agents + 1)*5 + 1
         self.net = nn.Sequential(
             nn.Conv2d(self.num_channels, 3, 3, 2),        
             nn.ReLU(),
@@ -80,6 +81,7 @@ class Policy(nn.Module):
         return self.critic_head(h).squeeze()
 
     def _run_loss(self, actor_dist, e_coef, v_coef, vs, As, Rs, Advs):
+        # print ("actor_dist: ", actor_dist.size())
         log_probs = actor_dist.log_prob(As)
         policy_loss = -(log_probs * Advs).mean()
         entropy_loss = -(actor_dist.entropy()).mean() * e_coef
@@ -99,9 +101,9 @@ class Policy(nn.Module):
 
 
 class LstmPolicy(Policy):
-    def __init__(self, n_s, n_a, n_n, n_step, n_fc=64, n_lstm=64, name=None,
+    def __init__(self, n_agents, n_s, n_a, n_n, n_step, n_fc=64, n_lstm=64, name=None,
                  na_dim_ls=None, identical=True):
-        super(LstmPolicy, self).__init__(n_a, n_s, n_step, 'lstm', name, identical)
+        super(LstmPolicy, self).__init__(n_agents, n_a, n_s, n_step, 'lstm', name, identical)
         if not self.identical:
             self.na_dim_ls = na_dim_ls
         self.n_lstm = n_lstm
@@ -159,9 +161,9 @@ class LstmPolicy(Policy):
 
 
 class FPPolicy(LstmPolicy):
-    def __init__(self, n_s, n_a, n_n, n_step, n_fc=64, n_lstm=64, name=None,
+    def __init__(self, n_agents, n_s, n_a, n_n, n_step, n_fc=64, n_lstm=64, name=None,
                  na_dim_ls=None, identical=True):
-        super(FPPolicy, self).__init__(n_s, n_a, n_n, n_step, n_fc, n_lstm, name,
+        super(FPPolicy, self).__init__(n_agents, n_s, n_a, n_n, n_step, n_fc, n_lstm, name,
                          na_dim_ls, identical)
 
     def _init_net(self):
@@ -193,13 +195,12 @@ class NCMultiAgentPolicy(Policy):
     """ Inplemented as a centralized meta-DNN. To simplify the implementation, all input
     and output dimensions are identical among all agents, and invalid values are casted as
     zeros during runtime."""
-    def __init__(self, n_s, n_a, n_agent, n_step, neighbor_mask, n_fc=64, n_h=64,
+    def __init__(self, n_agents, n_s, n_a, n_step, neighbor_mask, n_fc=64, n_h=64,
                  n_s_ls=None, n_a_ls=None, identical=True):
-        super(NCMultiAgentPolicy, self).__init__(n_a, n_s, n_step, 'nc', None, identical)
+        super(NCMultiAgentPolicy, self).__init__(n_agents, n_a, n_s, n_step, 'nc', None, identical)
         if not self.identical:
             self.n_s_ls = n_s_ls
             self.n_a_ls = n_a_ls
-        self.n_agent = n_agent
         self.neighbor_mask = neighbor_mask
         self.n_fc = n_fc
         self.n_h = n_h
@@ -212,6 +213,8 @@ class NCMultiAgentPolicy(Policy):
         dones = torch.from_numpy(dones).float()
         fps = torch.from_numpy(fps).float().transpose(0, 1)
         acts = torch.from_numpy(acts).long()
+        if obs.size()[1] < self.n_agents:
+            return
         hs, new_states = self._run_comm_layers(obs, dones, fps, self.states_bw)
         # backward grad is limited to the minibatch
         self.states_bw = new_states.detach()
@@ -222,9 +225,7 @@ class NCMultiAgentPolicy(Policy):
         self.entropy_loss = 0
         Rs = torch.from_numpy(Rs).float()
         Advs = torch.from_numpy(Advs).float()
-        for i in range(self.n_agent):
-            if i >= Rs.size()[0]:
-                i = i - 1
+        for i in range(self.n_agents):
             actor_dist_i = torch.distributions.categorical.Categorical(logits=ps[i])
             policy_loss_i, value_loss_i, entropy_loss_i = \
                 self._run_loss(actor_dist_i, e_coef, v_coef, vs[i],
@@ -290,7 +291,7 @@ class NCMultiAgentPolicy(Policy):
         # only discrete control is supported for now
         actor_head = nn.Linear(self.n_h, n_a)
         self.num_inputs = 294
-        self.num_channels = 16
+        self.num_channels = (self.n_agents + 1)*5 + 1
         self.net = nn.Sequential(
             nn.Conv2d(self.num_channels, 3, 3, 2),        
             nn.ReLU(),
@@ -340,7 +341,7 @@ class NCMultiAgentPolicy(Policy):
         self.ns_ls_ls = []
         self.na_ls_ls = []
         self.n_n_ls = []
-        for i in range(self.n_agent):
+        for i in range(self.n_agents):
             n_n, n_ns, n_na, ns_ls, na_ls = self._get_neighbor_dim(i)
             self.ns_ls_ls.append(ns_ls)
             self.na_ls_ls.append(na_ls)
@@ -351,12 +352,12 @@ class NCMultiAgentPolicy(Policy):
             self._init_critic_head(n_na)
 
     def _reset(self):
-        self.states_fw = torch.zeros(self.n_agent, self.n_h * 2)
-        self.states_bw = torch.zeros(self.n_agent, self.n_h * 2)
+        self.states_fw = torch.zeros(self.n_agents, self.n_h * 2)
+        self.states_bw = torch.zeros(self.n_agents, self.n_h * 2)
 
     def _run_actor_heads(self, hs, detach=False):
         ps = []
-        for i in range(self.n_agent):
+        for i in range(self.n_agents):
             if detach:
                 p_i = F.softmax(self.actor_heads[i](hs[i]), dim=1).squeeze().detach().numpy()
             else:
@@ -375,9 +376,11 @@ class NCMultiAgentPolicy(Policy):
             next_c = []
             x = x.squeeze(0)
             p = p.squeeze(0)
-            for i in range(self.n_agent):
-                if i >= x.size()[0]:
-                    i = i - 1
+
+            # print ("x: ", x.size())
+            # print ("p: ", p.size())
+            # print ("done: ", done.size())
+            for i in range(self.n_agents):
                 n_n = self.n_n_ls[i]
                 if n_n:
                     s_i = self._get_comm_s(i, n_n, x, h, p)
@@ -402,7 +405,7 @@ class NCMultiAgentPolicy(Policy):
 
     def _run_critic_heads(self, hs, actions, detach=False):
         vs = []
-        for i in range(self.n_agent):
+        for i in range(self.n_agents):
             n_n = self.n_n_ls[i]
             if n_n:
                 js = torch.from_numpy(np.where(self.neighbor_mask[i])[0]).long()
@@ -422,13 +425,13 @@ class NCMultiAgentPolicy(Policy):
 
 
 class ConsensusPolicy(NCMultiAgentPolicy):
-    def __init__(self, n_s, n_a, n_agent, n_step, neighbor_mask, n_fc=64, n_h=64,
+    def __init__(self, n_agents, n_s, n_a, n_step, neighbor_mask, n_fc=64, n_h=64,
                  n_s_ls=None, n_a_ls=None, identical=True):
-        Policy.__init__(self, n_a, n_s, n_step, 'cu', None, identical)
+        Policy.__init__(self, n_agents, n_a, n_s, n_step, 'cu', None, identical)
         if not self.identical:
             self.n_s_ls = n_s_ls
             self.n_a_ls = n_a_ls
-        self.n_agent = n_agent
+        self.n_agents = n_agents
         self.neighbor_mask = neighbor_mask
         self.n_fc = n_fc
         self.n_h = n_h
@@ -438,7 +441,7 @@ class ConsensusPolicy(NCMultiAgentPolicy):
     def consensus_update(self):
         consensus_update = []
         with torch.no_grad():
-            for i in range(self.n_agent):
+            for i in range(self.n_agents):
                 mean_wts = self._get_critic_wts(i)
                 for param, wt in zip(self.lstm_layers[i].parameters(), mean_wts):
                     param.copy_(wt)
@@ -450,7 +453,7 @@ class ConsensusPolicy(NCMultiAgentPolicy):
         self.critic_heads = nn.ModuleList()
         self.na_ls_ls = []
         self.n_n_ls = []
-        for i in range(self.n_agent):
+        for i in range(self.n_agents):
             n_n, _, n_na, _, na_ls = self._get_neighbor_dim(i)
             n_s = self.n_s if self.identical else self.n_s_ls[i]
             self.na_ls_ls.append(na_ls)
@@ -483,7 +486,7 @@ class ConsensusPolicy(NCMultiAgentPolicy):
         obs = obs.transpose(0, 1)
         hs = []
         new_states = []
-        for i in range(self.n_agent):
+        for i in range(self.n_agents):
             xs_i = F.relu(self.fc_x_layers[i](obs[i]))
             hs_i, new_states_i = run_rnn(self.lstm_layers[i], xs_i, dones, states[i])
             hs.append(hs_i.unsqueeze(0))
@@ -495,13 +498,12 @@ class CommNetMultiAgentPolicy(NCMultiAgentPolicy):
     """Reference code: https://github.com/IC3Net/IC3Net/blob/master/comm.py.
        Note in CommNet, the message is generated from hidden state only, so current state
        and neigbor policies are not included in the inputs."""
-    def __init__(self, n_s, n_a, n_agent, n_step, neighbor_mask, n_fc=64, n_h=64,
+    def __init__(self, n_agents, n_s, n_a, n_step, neighbor_mask, n_fc=64, n_h=64,
                  n_s_ls=None, n_a_ls=None, identical=True):
-        Policy.__init__(self, n_a, n_s, n_step, 'cnet', None, identical)
+        Policy.__init__(self, n_agents, n_a, n_s, n_step, 'cnet', None, identical)
         if not self.identical:
             self.n_s_ls = n_s_ls
             self.n_a_ls = n_a_ls
-        self.n_agent = n_agent
         self.neighbor_mask = neighbor_mask
         self.n_fc = n_fc
         self.n_h = n_h
@@ -540,13 +542,12 @@ class CommNetMultiAgentPolicy(NCMultiAgentPolicy):
 
 
 class DIALMultiAgentPolicy(NCMultiAgentPolicy):
-    def __init__(self, n_s, n_a, n_agent, n_step, neighbor_mask, n_fc=64, n_h=64,
+    def __init__(self, n_agents, n_s, n_a, n_step, neighbor_mask, n_fc=64, n_h=64,
                  n_s_ls=None, n_a_ls=None, identical=True):
-        Policy.__init__(self, n_a, n_s, n_step, 'dial', None, identical)
+        Policy.__init__(self, n_agents, n_a, n_s, n_step, 'dial', None, identical)
         if not self.identical:
             self.n_s_ls = n_s_ls
             self.n_a_ls = n_a_ls
-        self.n_agent = n_agent
         self.neighbor_mask = neighbor_mask
         self.n_fc = n_fc
         self.n_h = n_h

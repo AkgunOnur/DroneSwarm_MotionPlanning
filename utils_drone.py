@@ -5,6 +5,7 @@ import time
 import os
 import pandas as pd
 import subprocess
+import pickle
 
 
 def check_dir(cur_dir):
@@ -90,7 +91,8 @@ class Counter:
 
 
 class Trainer():
-    def __init__(self, env, model, global_counter, output_path=None, model_path=None):
+    def __init__(self, env, model, global_counter, n_agents, output_path=None, model_path=None):
+        np.set_printoptions(precision=2)
         self.cur_step = 0
         self.global_counter = global_counter
         self.env = env
@@ -144,33 +146,39 @@ class Trainer():
     #     self._add_summary(mean_reward, global_step)
     #     self.summary_writer.flush()
 
-    def perform(self, test_ind, gui=False):
-        N_iter = 400
+    def perform(self, N_iter=1000):
         is_centralized = False
         ob = self.env.reset()
         rewards = []
         # note this done is pre-decision to reset LSTM states!
-        done = False
+        pos_list = np.zeros((3, N_iter, self.env.n_agents))
         # self.model.reset()
         for i in range(N_iter):
+            done = False
             if self.agent == 'greedy':
                 action = self.model.forward(ob)
             else:
                 # in on-policy learning, test policy has to be stochastic
-                if self.env.name.startswith('atsc'):
-                    policy, action = self._get_policy(ob, done)
-                else:
-                    # for mission-critic tasks like CACC, we need deterministic policy
-                    policy, action = self._get_policy(ob, done, mode='test')
+                # if self.env.name.startswith('atsc'):
+                #     policy, action = self._get_policy(ob, done)
+                # else:
+                #     # for mission-critic tasks like CACC, we need deterministic policy
+                policy, action = self._get_policy(ob, done, mode='train')
                 self.env.update_fingerprint(policy)
             next_ob, reward, done, _ = self.env.step(action, i, is_centralized)
             rewards.append(reward)
-            if done:
-                break
+            print ("E-Iteration: {0}/{1}, Actions: {2}, Rewards: {3}".format(i+1, N_iter, action, reward))
+            for j in range(self.env.n_agents):
+                # print ("state {0}: X:{1:.3}, Y:{2:.3}, Z:{3:.3}".format(i+1, self.env.quadrotors[i].state[0], 
+                #                                                 self.env.quadrotors[i].state[1],self.env.quadrotors[i].state[2] ))
+                pos_list[:, i, j] = self.env.quadrotors[j].state[0:3]
+
+            # if done:
+            #     break
             ob = next_ob
         mean_reward = np.mean(np.array(rewards))
         std_reward = np.std(np.array(rewards))
-        return mean_reward, std_reward
+        return mean_reward, std_reward, pos_list
 
     def explore(self, prev_ob, prev_done, episode):
         ob = prev_ob
@@ -200,12 +208,12 @@ class Trainer():
             #                  (global_step, self.cur_step,
             #                   str(ob), str(action), str(policy), reward, np.mean(reward), done))
             # terminal check must be inside batch loop for CACC env
-            print ("Episode/Iteration: {0}/{1}, Actions: {2}, Rewards: {3}".format(episode, i, action, reward))
+            print ("T-Episode/Iteration: {0}/{1}, Actions: {2}, Rewards: {3}".format(episode+1, i+1, action, reward))
             if done:
                 break
             ob = next_ob
         if done:
-            R = np.zeros(self.model.n_agent)
+            R = np.zeros(self.model.n_agents)
         else:
             _, action = self._get_policy(ob, done)
             R = self._get_value(ob, done, action)
@@ -216,6 +224,7 @@ class Trainer():
         best_reward_train = -np.Inf
         best_reward_test = -np.Inf
         eval_period = 50
+        N_test = 1000
         # while not self.global_counter.should_stop():
         for episode in range(N_episode):
             # np.random.seed(self.env.seed)
@@ -239,9 +248,9 @@ class Trainer():
                 best_reward_train = mean_reward 
                 self.model.save(self.model_path, episode, "train", mean_reward)
 
-            if episode % eval_period == 0:
+            if (episode + 1) % eval_period == 0:
                 self.env.train_mode = False
-                mean_reward, std_reward = self.perform(-1)
+                mean_reward, std_reward, episode_pos_list = self.perform(N_test)
                 self.env.train_mode = True
                 if mean_reward > best_reward_test:
                     print ("Better reward value in Test mode is obtained! The model is being saved!")
@@ -272,7 +281,7 @@ class Tester(Trainer):
         self.env.init_data(is_record, record_stats, self.output_path)
         rewards = []
         for test_ind in range(self.test_num):
-            rewards.append(self.perform(test_ind))
+            rewards.append(self.perform())
             self.env.terminate()
             time.sleep(2)
             self.env.collect_tripinfo()
@@ -288,7 +297,7 @@ class Tester(Trainer):
                 rewards = []
                 global_step = self.global_counter.cur_step
                 for test_ind in range(self.test_num):
-                    cur_reward = self.perform(test_ind)
+                    cur_reward = self.perform()
                     self.env.terminate()
                     rewards.append(cur_reward)
                     log = {'agent': self.agent,
@@ -306,28 +315,24 @@ class Tester(Trainer):
 
 
 class Evaluator(Tester):
-    def __init__(self, env, model, output_path, gui=False):
+    def __init__(self, env, model, n_agents, output_path):
+        np.set_printoptions(precision=2)
         self.env = env
         self.model = model
         self.agent = self.env.agent
         self.env.train_mode = False
-        self.test_num = self.env.test_num
         self.output_path = output_path
-        self.gui = gui
 
     def run(self):
-        if self.gui:
-            is_record = False
-        else:
-            is_record = True
-        record_stats = False
         self.env.cur_episode = 0
-        self.env.init_data(is_record, record_stats, self.output_path)
-        time.sleep(1)
-        for test_ind in range(self.test_num):
-            reward, _ = self.perform(test_ind, gui=self.gui)
-            self.env.terminate()
-            logging.info('test %i, avg reward %.2f' % (test_ind, reward))
-            time.sleep(2)
-            self.env.collect_tripinfo()
-        self.env.output_data()
+        N_episode = 1
+        N_iteration = 7500
+        total_pos_list = []
+        for test_ind in range(N_episode):
+            reward, std_reward, episode_pos_list = self.perform(N_iteration)
+            print ('Episode %i/%i, average reward %.2f, std reward: %.2f' % (test_ind+1, N_episode, reward, std_reward))
+            time.sleep(0.1)
+            total_pos_list.append(episode_pos_list)
+
+            with open('agents_positions.pkl', 'wb') as f:
+                pickle.dump(total_pos_list, f)
