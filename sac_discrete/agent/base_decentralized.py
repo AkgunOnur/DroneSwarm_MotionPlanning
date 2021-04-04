@@ -17,7 +17,7 @@ class BaseAgent_Decentralized(ABC):
                  use_per=False, num_eval_steps=125000, max_episode_steps=20000, max_iteration_steps=300,
                  log_interval=10, eval_interval=500, device='cpu', seed=0):
         super().__init__()
-
+        np.set_printoptions(precision=2)
         self.env = env
         self.is_centralized = False
         agent_obs_shape = (self.env.N_frame * (self.env.n_agents + 1) +
@@ -51,7 +51,7 @@ class BaseAgent_Decentralized(ABC):
                 state_shape=agent_obs_shape,
                 device=self.device, gamma=gamma, multi_step=multi_step) for i in range(self.env.n_agents)]
 
-        self.model_dir = '/okyanus/users/deepdrone/decentralized/DroneSwarm_MotionPlanning/models_decentralized'
+        self.model_dir = '/okyanus/users/deepdrone/motion_planning/DroneSwarm_MP/models_decentralized'
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
 
@@ -109,7 +109,8 @@ class BaseAgent_Decentralized(ABC):
     def train_episode(self):
 
         for episode in range(self.max_episode_steps):
-            episode_return = [0. for i in range(self.env.n_agents)]
+            # episode_return = [0. for i in range(self.env.n_agents)]
+            episode_return = np.zeros(self.env.n_agents)
             agent_obs = self.env.reset()
             done = False
             
@@ -152,10 +153,11 @@ class BaseAgent_Decentralized(ABC):
                         self.save_models(os.path.join(
                             self.model_dir, 'final'), agent_ind, episode)
 
-            print(f'Episode: {episode:<5}  '
-                  f'Iteration: {iteration:<3}  '
-                  f'Return 1: {episode_return[0]:<5.1f}  '
-                  f'Return 2: {episode_return[1]:<5.1f}')
+            print ("Episode: {0}/{1}, Iteration: {2}, Rewards: {3}".format(episode+1, self.max_episode_steps, iteration, episode_return))
+            # print(f'Episode: {episode:<5}  '
+            #       f'Iteration: {iteration:<3}  '
+            #       f'Return 1: {episode_return[0]:<5.1f}  '
+            #       f'Return 2: {episode_return[1]:<5.1f}')
 
     def learn(self):
         assert hasattr(self, 'q1_optim') and hasattr(self, 'q2_optim') and\

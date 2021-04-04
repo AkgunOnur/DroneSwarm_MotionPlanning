@@ -24,7 +24,7 @@ class SacdAgent_Decentralized(BaseAgent_Decentralized):
             log_interval, eval_interval, device, seed)
 
         N_action = 6
-
+        np.set_printoptions(precision=2)
         # Define networks.
         self.policy = [CateoricalPolicy(
             self.env.N_frame * (self.env.n_agents + 1) + 1, N_action).to(self.device) for i in range(self.env.n_agents)]

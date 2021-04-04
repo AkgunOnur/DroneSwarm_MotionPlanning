@@ -23,6 +23,7 @@ class SacdAgent(BaseAgent):
             target_update_interval, use_per, num_eval_steps, max_episode_steps, max_iteration_steps,
             log_interval, eval_interval, device, seed)
         N_action = 6 ** 2
+        np.set_printoptions(precision=2)
         # Define networks.
         self.policy = CateoricalPolicy(
             self.env.N_frame * (self.env.n_agents + 1) + 1, N_action).to(self.device)

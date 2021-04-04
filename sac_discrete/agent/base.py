@@ -17,7 +17,7 @@ class BaseAgent(ABC):
                  use_per=False, num_eval_steps=125000, max_episode_steps=20000, max_iteration_steps=300,
                  log_interval=10, eval_interval=500, device='cpu', seed=0):
         super().__init__()
-
+        np.set_printoptions(precision=2)
         self.env = env
         self.is_centralized = True
         agent_obs_shape = (self.env.N_frame * (self.env.n_agents + 1) +
@@ -51,7 +51,7 @@ class BaseAgent(ABC):
                 state_shape=agent_obs_shape,
                 device=self.device, gamma=gamma, multi_step=multi_step)
 
-        self.model_dir = '/okyanus/users/deepdrone/centralized/DroneSwarm_MotionPlanning/models_centralized'
+        self.model_dir = '/okyanus/users/deepdrone/motion_planning/DroneSwarm_MP/models_centralized'
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
 

@@ -9,10 +9,10 @@ from point_mass_formation_discrete import QuadrotorFormation
 
 
 def main():
-    n_agents = 2
+    n_agents = 5
     N_frame = 5
-    Max_iteration = 6000
-    Eval_interval = 500
+    Max_iteration = 400
+    Eval_interval = 50
     N_episodes = 50000
     Batch_size = 256
     Memory_Size = 150000
@@ -21,7 +21,7 @@ def main():
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device = 'cpu'
     seed = 27
-    is_centralized = True
+    is_centralized = False
     visualization = False
 
     # Create environments.
