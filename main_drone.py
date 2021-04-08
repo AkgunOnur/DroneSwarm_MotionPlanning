@@ -19,10 +19,10 @@ from utils_drone import (Counter, Trainer, Tester, Evaluator,
 
 
 def parse_args():
-    default_base_dir = '/okyanus/users/deepdrone/motion_planning/DroneSwarm_MP_Neurcomm/output'
-    default_config_dir = '/okyanus/users/deepdrone/motion_planning/DroneSwarm_MP_Neurcomm/config/config_drone.ini'
-    # default_base_dir = './output'
-    # default_config_dir = './config/config_drone.ini'
+    # default_base_dir = '/okyanus/users/deepdrone/motion_planning/DroneSwarm_MP_Neurcomm/output'
+    # default_config_dir = '/okyanus/users/deepdrone/motion_planning/DroneSwarm_MP_Neurcomm/config/config_drone.ini'
+    default_base_dir = './output'
+    default_config_dir = './config/config_drone.ini'
     parser = argparse.ArgumentParser()
     parser.add_argument('--base-dir', type=str, required=False,
                         default=default_base_dir, help="experiment base dir")
@@ -140,10 +140,11 @@ def evaluate_fn(agent_dir, output_dir, seeds, port, demo):
     log_step = 100 #int(config.getfloat('TRAIN_CONFIG', 'log_interval'))
 
     seed = config.getint('ENV_CONFIG', 'seed')
-
+    
+    
     # load model for agent
-    model = init_agent(env, config['MODEL_CONFIG'], total_step, seed)
-    model.load_model(dirs['new_model'], epoch=4822, save_type="train")
+    model = init_agent(n_agents, env, config['MODEL_CONFIG'], total_step, seed)
+    model.load_model(dirs['model'], epoch=4292, save_type="train")
 
     # collect evaluation data
     evaluator = Evaluator(env, model, n_agents, output_dir)
