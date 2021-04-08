@@ -221,7 +221,8 @@ class BaseAgent_Decentralized(ABC):
         iteration_steps = 1
         episode_return = np.zeros(self.env.n_agents)
         done = False
-        pos_list = [[] for i in range(self.env.n_agents)]
+        # pos_list = [[] for i in range(self.env.n_agents)]
+        pos_list = np.zeros((3, self.max_iteration_steps, self.env.n_agents))
 
         while iteration_steps <= self.max_iteration_steps:
             action = np.zeros(self.env.n_agents)
@@ -229,12 +230,15 @@ class BaseAgent_Decentralized(ABC):
                 action[agent_ind] = self.explore(agent_ind, agent_obs, self.device)
 
             next_agent_obs, reward, done, _ = self.env.step(action, iteration_steps, self.is_centralized)
+
+            for j in range(self.env.n_agents):
+                # print ("state {0}: X:{1:.3}, Y:{2:.3}, Z:{3:.3}".format(i+1, self.env.quadrotors[i].state[0], 
+                #                                                 self.env.quadrotors[i].state[1],self.env.quadrotors[i].state[2] ))
+                pos_list[:, iteration_steps-1, j] = self.env.quadrotors[j].state[0:3]
+
             iteration_steps += 1
             episode_return += reward
             agent_obs = next_agent_obs
-
-            for i in range(self.env.n_agents):
-                pos_list[i].append(self.env.quadrotors[i].state[0:3])
 
         for agent_ind in range(self.env.n_agents):
             print("Test Mode - For Agent {0}, The reward: {1:.3f}".format(

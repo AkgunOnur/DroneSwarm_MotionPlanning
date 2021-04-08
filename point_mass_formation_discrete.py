@@ -5,9 +5,6 @@ from gym.utils import seeding
 import numpy as np
 import configparser
 from os import path
-import matplotlib.pyplot as plt
-from matplotlib.pyplot import gca
-from sklearn.neighbors import NearestNeighbors
 import itertools
 import random
 import pdb

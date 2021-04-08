@@ -11,12 +11,12 @@ from point_mass_formation_discrete import QuadrotorFormation
 
 
 def main():
-    n_agents = 2
+    n_agents = 5
     N_test_episodes = 1
     N_frame = 5
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     seed = 25
-    is_centralized = True
+    is_centralized = False
     visualization = False
 
     file_name = "best"
@@ -47,14 +47,14 @@ def main():
         agent.policy.eval()
     else:
         agent = SacdAgent_Decentralized(env=env, batch_size=128, memory_size=150000, start_steps=200, update_interval=4, target_update_interval=12,
-                          use_per=True, dueling_net=True, max_episode_steps=100000, eval_interval=500, max_iteration_steps=6000,
+                          use_per=True, dueling_net=True, max_episode_steps=100000, eval_interval=500, max_iteration_steps=7500,
                           device=device, seed=seed)
         for i in range(n_agents):
-            agent.target_critic[i].load_state_dict(torch.load("./models_decentralized/" + file_name + "/target_critic_" + str(i+1) + ".pth"))
+            agent.target_critic[i].load_state_dict(torch.load("./models_decentralized/" + file_name + "/target_critic_" + str(i+1) + "_1.pth"))
             agent.target_critic[i].eval()
-            agent.online_critic[i].load_state_dict(torch.load("./models_decentralized/" + file_name + "/online_critic_" + str(i+1) + ".pth"))
+            agent.online_critic[i].load_state_dict(torch.load("./models_decentralized/" + file_name + "/online_critic_" + str(i+1) + "_1.pth"))
             agent.online_critic[i].eval()
-            agent.policy[i].load_state_dict(torch.load("./models_decentralized/" + file_name + "/policy_" + str(i+1) + ".pth"))
+            agent.policy[i].load_state_dict(torch.load("./models_decentralized/" + file_name + "/policy_" + str(i+1) + "_1.pth"))
             agent.policy[i].eval()
 
     for i in range(N_test_episodes):
