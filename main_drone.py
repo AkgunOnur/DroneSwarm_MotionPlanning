@@ -79,7 +79,7 @@ parser.add_argument('--random', action='store_true', default=False,
                     help="enable random model")
 
 # CommNet specific args
-parser.add_argument('--mode',  default="Train",
+parser.add_argument('--mode',  default="Test",
                     help="Train or Test mode")
 parser.add_argument('--commnet', action='store_true', default=False,
                     help="enable commnet model")
@@ -301,6 +301,7 @@ def load(path):
     policy_net.load_state_dict(d['policy_net'])
     log.update(d['log'])
     trainer.load_state_dict(d['trainer'])
+    tester.load_state_dict(d['trainer'])
 
 def signal_handler(signal, frame):
         print('You pressed Ctrl+C! Exiting gracefully.')
@@ -316,13 +317,14 @@ if args.load != '':
 if args.mode == "Train":
     train_run(args.num_epochs)
 else:
+    load("./model/model_train_3492.pt")
     tester.test_batch(1)
 
 if args.display:
     env.end_display()
 
-if args.save != '':
-    save(args.save)
+if args.save != '' and args.mode == "Train":
+    save(args.save, 0, "train")
 
 if sys.flags.interactive == 0 and args.nprocesses > 1:
     trainer.quit()
