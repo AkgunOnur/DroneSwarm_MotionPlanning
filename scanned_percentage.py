@@ -1,26 +1,27 @@
-import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.animation import FuncAnimation
-# This import registers the 3D projection, but is otherwise unused.
-from random import randint
-from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
-import matplotlib.colors
-
 import pickle
+# import matplotlib.pyplot as plt
+# from matplotlib.animation import FuncAnimation
+# This import registers the 3D projection, but is otherwise unused.
+# from random import randint
+# from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
+# import matplotlib.colors
+
+
 
 x_lim = 20  # grid x limit
 y_lim = 20  # grid y limit
-z_lim = 15  # grid z limit
+z_lim = 6  # grid z limit
 res = 1.0  # resolution for grids
 out_shape = 164  # width and height for uncertainty matrix
 dist = 5.0  # distance threshold
 
-X, Y, Z = np.mgrid[-x_lim:x_lim + 0.1:res, -
-                   y_lim:y_lim + 0.1:res, 0:z_lim + 0.1:res]
+X, Y, Z = np.mgrid[-x_lim:x_lim + 0.1:res, 
+                    -y_lim:y_lim + 0.1:res, 
+                    0:z_lim + 0.1: 2*res]
 uncertainty_grids = np.vstack((X.flatten(), Y.flatten(), Z.flatten())).T
-uncertainty_values = np.random.uniform(
-    low=0.95, high=1.0, size=(uncertainty_grids.shape[0],))
 grid_visits = np.zeros((uncertainty_grids.shape[0], ))
+uncertainty_values = np.random.uniform(low=0.95, high=1.0, size=(uncertainty_grids.shape[0],))
 
 with open('agents_positions.pkl', 'rb') as f:
     total_pos_list = pickle.load(f)
@@ -98,7 +99,27 @@ def update_combined(R):
     print("Map coverage: ", 100 * scanned_grids / total_grids)
 
 
+def get_map_coverage():
+    for episode_pos in total_pos_list:
+        print ("episode_pos: ", episode_pos.shape)
+        N_iteration = episode_pos.shape[1]
+        for i in range(N_iteration):
+            # print(i)
+            for agent_ind in range(episode_pos.shape[2]):
+                agent_pos = episode_pos[:, i, agent_ind]
+                indices = get_closest_n_grids(agent_pos, 8)
+                grid_visits[indices] = 1
+                # print ("Episode {4}, Agent {0} X:{1:.4}, Y:{2:.4}, Z:{3:.4}".format(agent_ind+1, agent_pos[0], agent_pos[1], agent_pos[2], episode+1))
+                # for a in range(uncertainty_grids[indices].shape[0]):
+                #     voxels[:, :, int(uncertainty_grids[indices][a, 2] - 1)][int(
+                #         uncertainty_grids[indices][a, 0]) + 20, int(uncertainty_grids[indices][a, 1]) + 20] = True
+
+    visited_grids = len(np.where(grid_visits == 1)[0])
+    print("Map coverage: ", 100 * visited_grids / len(grid_visits))
+
+
+
 if __name__ == '__main__':
-    R = 7500
+    # R = 7500
     # update(R)
-    update(R)
+    get_map_coverage()

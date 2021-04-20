@@ -29,12 +29,12 @@ class Trainer(object):
 
     def get_episode(self, epoch):
         episode = []
-        N_iteration = 400
+        N_iteration = 500
         reset_args = getargspec(self.env.reset).args
         if 'epoch' in reset_args:
-            state = self.env.reset(epoch)
+            state, battery_status = self.env.reset(epoch)
         else:
-            state = self.env.reset()
+            state, battery_status = self.env.reset()
         should_display = self.display and self.last_step
 
         # if should_display:
@@ -52,6 +52,8 @@ class Trainer(object):
 
             state = torch.DoubleTensor(state)
             state = state.view(self.args.nagents, state.size(-3), state.size(-2), state.size(-1))
+            battery_status = torch.DoubleTensor(battery_status)
+            battery_status = battery_status.view(self.args.nagents, -1)
             # state = state.view(-1, self.args.nagents, state.size(-3), state.size(-2), state.size(-1))
 
             # recurrence over time
@@ -60,7 +62,7 @@ class Trainer(object):
                     prev_hid = self.policy_net.init_hidden(batch_size=1)
 
                 x = [state, prev_hid]
-                action_out, value, prev_hid = self.policy_net(x, info)
+                action_out, value, prev_hid = self.policy_net(x, battery_status, info)
                 
 
                 if (t + 1) % self.args.detach_gap == 0:
@@ -70,11 +72,12 @@ class Trainer(object):
                         prev_hid = prev_hid.detach()
             else:
                 x = state
-                action_out, value = self.policy_net(x, info)
+                action_out, value = self.policy_net(x, battery_status, info)
 
             action = select_action(self.args, action_out)
             action, actual = translate_action(self.args, self.env, action)
-            next_state, reward, done, info = self.env.step(action, t, self.is_centralized)
+            total_obs, reward, done, info = self.env.step(action, t, self.is_centralized)
+            next_state, battery_status = total_obs
             print ("T-Episode/Iteration: {0}/{1}, Actions: {2}, Rewards: {3}".format(epoch+1, t+1, action[0], reward))
 
             # store comm_action in info for next step
@@ -297,9 +300,9 @@ class Tester(object):
         pos_list = np.zeros((3, N_iteration, self.env.n_agents))
         reset_args = getargspec(self.env.reset).args
         if 'epoch' in reset_args:
-            state = self.env.reset(epoch)
+            state, battery_status = self.env.reset(epoch)
         else:
-            state = self.env.reset()
+            state, battery_status = self.env.reset()
         should_display = self.display and self.last_step
 
         # if should_display:
@@ -317,6 +320,8 @@ class Tester(object):
 
             state = torch.DoubleTensor(state)
             state = state.view(self.args.nagents, state.size(-3), state.size(-2), state.size(-1))
+            battery_status = torch.DoubleTensor(battery_status)
+            battery_status = battery_status.view(self.args.nagents, -1)
             # state = state.view(-1, self.args.nagents, state.size(-3), state.size(-2), state.size(-1))
 
             # recurrence over time
@@ -325,7 +330,7 @@ class Tester(object):
                     prev_hid = self.policy_net.init_hidden(batch_size=1)
 
                 x = [state, prev_hid]
-                action_out, value, prev_hid = self.policy_net(x, info)
+                action_out, value, prev_hid = self.policy_net(x, battery_status, info)
                 
 
                 if (t + 1) % self.args.detach_gap == 0:
@@ -335,11 +340,12 @@ class Tester(object):
                         prev_hid = prev_hid.detach()
             else:
                 x = state
-                action_out, value = self.policy_net(x, info)
+                action_out, value = self.policy_net(x, battery_status, info)
 
             action = select_action(self.args, action_out)
             action, actual = translate_action(self.args, self.env, action)
-            next_state, reward, done, info = self.env.step(action, t, self.is_centralized)
+            total_obs, reward, done, info = self.env.step(action, t, self.is_centralized)
+            next_state, battery_status = total_obs
             print ("E-Episode/Iteration: {0}/{1}, Actions: {2}, Rewards: {3}".format(epoch+1, t+1, action[0], reward))
 
             for j in range(self.env.n_agents):

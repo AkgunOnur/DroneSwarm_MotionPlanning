@@ -65,7 +65,7 @@ parser.add_argument('--plot', action='store_true', default=False,
                     help='plot training progress')
 parser.add_argument('--plot_env', default='main', type=str,
                     help='plot env name')
-parser.add_argument('--save', default='/okyanus/users/deepdrone/motion_planning/DroneSwarm_MP_IC3/model/', type=str,
+parser.add_argument('--save', default='/home/deepdrone/DroneSwarm_MP_IC3/model/', type=str,
                     help='save the model after training')
 parser.add_argument('--save_every', default=2, type=int,
                     help='save the model after every n_th epoch')
@@ -79,7 +79,7 @@ parser.add_argument('--random', action='store_true', default=False,
                     help="enable random model")
 
 # CommNet specific args
-parser.add_argument('--mode',  default="Test",
+parser.add_argument('--mode',  default="Train",
                     help="Train or Test mode")
 parser.add_argument('--commnet', action='store_true', default=False,
                     help="enable commnet model")

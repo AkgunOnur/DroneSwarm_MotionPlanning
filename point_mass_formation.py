@@ -21,7 +21,6 @@ font = {'family': 'sans-serif',
 
 
 class QuadrotorFormation(gym.Env):
-
     def __init__(self, n_agents=1, N_frame=5, visualization=True, is_centralized = True):
 
         # number of actions per agent which are desired positions and yaw angle
@@ -52,7 +51,15 @@ class QuadrotorFormation(gym.Env):
         self.dist = 5.0  # distance threshold
         self.N_closest_grid = 4
         self.neighbour_grids = 8
-        
+
+        # Battery definitions
+        self.battery_points = np.array([[-20, -20, 0, -18, -12, 4], [18, 12, 0, 20, 20, 4], 
+                                            [-20, 12, 0, -18, 20, 4], [18, -20, 0, 20, -12, 4]])
+
+        self.battery_positions = None
+        self.battery_status = None
+        self.battery_indices = None
+        self.battery_stack = None
 
         X, Y, Z = np.mgrid[-self.x_lim : self.x_lim + 0.1 : self.grid_res, 
                            -self.y_lim : self.y_lim + 0.1 : self.grid_res, 
@@ -86,6 +93,10 @@ class QuadrotorFormation(gym.Env):
         self.iteration = iteration
         max_distance = 5.0
         min_distance = 0.5
+        uncertainty_constant = 0.0075
+        battery_cost = 0.01
+        battery_reward = 2.0
+        battery_critical_level = 0.25
         done = False
         reward_list = np.zeros(self.n_agents)
         uncertainty_limit = 0.25
@@ -105,11 +116,20 @@ class QuadrotorFormation(gym.Env):
         drone_init_pos = np.copy(drone_current_pos)    
 
         # print ("\n")
+
+        #increase the map uncertainty
+        self.uncertainty_values[self.no_obstacle_indices] = np.clip(
+                    self.uncertainty_values[self.no_obstacle_indices] + uncertainty_constant, 1e-6, 1.0)
+
+
         for agent_ind in range(self.n_agents):
             current_action = agents_actions[agent_ind]
             drone_prev_state, drone_current_state = self.get_drone_des_grid(agent_ind, current_action)
             current_pos = [drone_current_state[0],drone_current_state[1],drone_current_state[2]]
             explored_indices = self.get_closest_n_grids(current_pos, self.neighbour_grids)
+            current_grid = self.get_closest_grid(current_pos)
+
+            self.battery_status[agent_ind] = np.clip(self.battery_status[agent_ind] - battery_cost, 0.0, 1.0)
 
             # print ("Agent {0}".format(agent_ind+1))
             # print ("Current action: {0} / {1}".format(agents_actions[agent_ind], self.action_dict[agents_actions[agent_ind]]))
@@ -126,9 +146,23 @@ class QuadrotorFormation(gym.Env):
                 done = True
                 continue
 
+            if self.battery_status[agent_ind] <= 1e-2 and current_grid not in self.battery_indices: # if the battery status of an agent is less than %1, finish the episode
+                reward_list[agent_ind] = collision_reward
+                done = True
+                print ("Agent {} is out of battery!".format(agent_ind+1))
+            elif current_grid in self.battery_indices and self.battery_status[agent_ind] <= battery_critical_level: #if the agent goes the battery station with low battery, get positive reward
+                reward_list[agent_ind] = battery_reward
+                self.battery_status[agent_ind] = 1.0
+                print ("The battery level of Agent {0} is {1:.3}. Positive reward!".format(agent_ind+1, self.battery_status[agent_ind]))
+            elif current_grid in self.battery_indices and self.battery_status[agent_ind] > battery_critical_level: #if the agent goes the battery station with loaded battery, get negative reward
+                reward_list[agent_ind] = -battery_reward
+                self.battery_status[agent_ind] = 1.0
+                print ("The battery level of Agent {0} is {1:.3}. Negative reward!".format(agent_ind+1, self.battery_status[agent_ind]))
+
+
             total_explored_indices[agent_ind] = explored_indices
 
-            reward_list[agent_ind] += np.sum(self.uncertainty_values[explored_indices]) # max value will be neighbour_grids(=14)
+            reward_list[agent_ind] += np.sum(self.uncertainty_values[explored_indices]) # max value will be neighbour_grids(=8)
 
 
         for agent_ind in range(self.n_agents):
@@ -137,7 +171,8 @@ class QuadrotorFormation(gym.Env):
             else:
                 indices = total_explored_indices[agent_ind]
                 # exclude the indices of obstacles from the list of visited indices
-                to_be_updated_indices = np.setdiff1d(indices, self.obstacle_indices)
+                to_be_updated_indices = np.setdiff1d(indices, self.obstacle_indices) # obstacle indices are excluded
+                to_be_updated_indices = np.setdiff1d(to_be_updated_indices, self.battery_indices) # battery indices are excluded
 
                 self.grid_visits[to_be_updated_indices] += 1
                 self.uncertainty_values[to_be_updated_indices] = np.clip(
@@ -184,6 +219,8 @@ class QuadrotorFormation(gym.Env):
             # sleep(2.0)
 
         
+
+        
         # if self.is_centralized:
         #     return self.get_observation(), reward_list.sum(), done, {}
         # else:
@@ -194,21 +231,15 @@ class QuadrotorFormation(gym.Env):
         
 
     def get_observation(self):
-        # conv_stack(batch,4,84,84) input_channel = 4
-        # conv_stack(batch,16,84,84) = 5*agent1_pos + 5*agent2_pos + 5*uncertainty_grid + 1*obstacle_grid  
-        # conv_stack(batch,5,4,84,84)
-
-        # In the first 2 stacks, there will be position of agents (closest 4 grids to the agent will be 1, others will be 0)
-        # In the third stack, there will be uncertainty matrix, whose elements are between 0 and 1
-        # In the fourth stack, there will be positions of obstacles (positions of obstacles are 1)
+        # conv_stack(batch,17,84,84) = 5*agent1_pos + 5*agent2_pos + 5*uncertainty_grid + 1*obstacle_grid  + 1*battery_stack
 
         uncertainty_map = np.reshape(self.uncertainty_values,(self.out_shape, self.out_shape))
         if self.iteration % self.frame_update_iter == 0:
             self.uncertainty_stacks.append(uncertainty_map)
 
         
-        conv_stack = np.zeros((self.N_frame*(self.n_agents+1)+1, self.out_shape, self.out_shape))
-        obs_stack = np.zeros((self.n_agents, self.N_frame*(self.n_agents+1)+1, self.out_shape, self.out_shape))
+        conv_stack = np.zeros((self.N_frame*(self.n_agents+1)+2, self.out_shape, self.out_shape))
+        obs_stack = np.zeros((self.n_agents, self.N_frame*(self.n_agents+1)+2, self.out_shape, self.out_shape))
         for agent_ind in range(self.n_agents):
             for frame_ind in range(self.N_frame):
                 # agent_ind = 0, 0 1 2 3 4
@@ -219,12 +250,13 @@ class QuadrotorFormation(gym.Env):
         for frame_ind in range(self.N_frame):
             conv_stack[self.N_frame*(self.n_agents)+frame_ind,:,:] = np.copy(self.uncertainty_stacks[frame_ind])
 
-        conv_stack[-1,:,:] = np.copy(self.obstacles_stack)
+        conv_stack[-2,:,:] = np.copy(self.obstacles_stack)
+        conv_stack[-1,:,:] = np.copy(self.battery_stack)
 
         for i in range(self.n_agents):
             obs_stack[i,:,:,:] = np.copy(conv_stack)
 
-        return obs_stack
+        return obs_stack, self.battery_status
 
 
     def reset(self):
@@ -245,12 +277,34 @@ class QuadrotorFormation(gym.Env):
         self.obstacle_end = np.array([[9+x_rnd,20+y_rnd,6]])
 
         self.obstacle_indices, self.obstacle_pos_xy = self.get_obstacle_indices()
+        
+
+        lst = []
+        for location in self.battery_points:
+            xyz = np.mgrid[location[0]:location[3]+0.1:self.grid_res,
+                            location[1]:location[4]+0.1:self.grid_res,
+                            location[2]:location[5]+0.1:2*self.grid_res].reshape(3,-1).T
+            lst.append(xyz)
+            
+        self.battery_positions = np.vstack((lst[0],lst[1], lst[2], lst[3]))
+        array_of_tuples = map(tuple, self.battery_positions)
+        self.battery_positions = tuple(array_of_tuples)
+        self.battery_status = np.random.uniform(low=0.95, high=1.0,size=self.n_agents)
+
+        self.battery_indices = self.get_battery_indices()
 
         self.uncertainty_values[self.obstacle_indices] = -1.0 # make uncertainty values of obstacle positions -1 so that agents should not get close to them
+        self.uncertainty_values[self.battery_indices] = 0.0 # make uncertainty values of battery positions -0 so that agents should not get reward by going there
 
         self.obstacles_stack = np.zeros(self.uncertainty_grids.shape[0])
         self.obstacles_stack[self.obstacle_indices] = 1
         self.obstacles_stack = np.reshape(self.obstacles_stack,(self.out_shape, self.out_shape))
+        self.battery_stack = np.zeros(self.uncertainty_grids.shape[0])
+        self.battery_stack[self.battery_indices] = 1
+        self.battery_stack = np.reshape(self.battery_stack,(self.out_shape, self.out_shape))
+
+        total_indices = np.arange(self.uncertainty_grids.shape[0])
+        self.no_obstacle_indices = np.setdiff1d(total_indices, self.obstacle_indices)
 
 
         # Debugging to check collision
@@ -402,6 +456,16 @@ class QuadrotorFormation(gym.Env):
                 obstacle_indices_unsquezed.append(obstacle_indices[i][j])
         
         return obstacle_indices_unsquezed, obstacle_pos
+
+    def get_battery_indices(self):
+        battery_indices = []
+
+        for pos in self.battery_positions:
+            current_pos = np.array([pos[0], pos[1], pos[2]])
+            current_ind = self.get_closest_grid(current_pos)
+            battery_indices.append(current_ind)
+
+        return battery_indices
 
 
     def visualize(self, agent_pos_dict=None, mode='human'):

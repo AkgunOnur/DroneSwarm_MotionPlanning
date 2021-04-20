@@ -36,9 +36,9 @@ class CommNetMLP(nn.Module):
         self.hid_size = args.hid_size
         self.comm_passes = args.comm_passes
         self.recurrent = args.recurrent
-
+        self.encoder2_hid_size = 15
         self.num_inputs = 6*7*7
-        self.num_channels = (n_agents + 1)*5 + 1
+        self.num_channels = (n_agents + 1)*5 + 1 + 1
         self.net = nn.Sequential(
             nn.Conv2d(self.num_channels, 3, 3, 2),        
             nn.ReLU(),
@@ -61,7 +61,7 @@ class CommNetMLP(nn.Module):
             self.action_mean = nn.Linear(args.hid_size, args.dim_actions)
             self.action_log_std = nn.Parameter(torch.zeros(1, args.dim_actions))
         else:
-            self.heads = nn.ModuleList([nn.Linear(args.hid_size, o)
+            self.heads = nn.ModuleList([nn.Linear(self.encoder2_hid_size + 1, o)
                                         for o in args.naction_heads])
         self.init_std = args.init_std if hasattr(args, 'comm_init_std') else 0.2
 
@@ -78,6 +78,8 @@ class CommNetMLP(nn.Module):
         # The network below is function r in the paper for encoding
         # initial environment stage
         self.encoder = nn.Linear(self.num_inputs, args.hid_size)
+        self.encoder_2 = nn.Linear(args.hid_size, self.encoder2_hid_size)
+        self.encoder_battery = nn.Linear(1, 1)
 
         # if self.args.env_name == 'starcraft':
         #     self.state_encoder = nn.Linear(num_inputs, num_inputs)
@@ -87,7 +89,7 @@ class CommNetMLP(nn.Module):
 
         if args.recurrent:
             self.init_hidden(args.batch_size)
-            self.f_module = nn.LSTMCell(args.hid_size, args.hid_size)
+            self.f_module = nn.LSTMCell(self.encoder2_hid_size + 1, self.encoder2_hid_size + 1)
 
         else:
             if args.share_weights:
@@ -107,7 +109,7 @@ class CommNetMLP(nn.Module):
             self.C_modules = nn.ModuleList([self.C_module
                                             for _ in range(self.comm_passes)])
         else:
-            self.C_modules = nn.ModuleList([nn.Linear(args.hid_size, args.hid_size)
+            self.C_modules = nn.ModuleList([nn.Linear(self.encoder2_hid_size + 1, self.encoder2_hid_size + 1)
                                             for _ in range(self.comm_passes)])
         # self.C = nn.Linear(args.hid_size, args.hid_size)
 
@@ -122,7 +124,7 @@ class CommNetMLP(nn.Module):
         # Init weights for linear layers
         # self.apply(self.init_weights)
 
-        self.value_head = nn.Linear(self.hid_size, 1)
+        self.value_head = nn.Linear(self.encoder2_hid_size + 1, 1)
 
 
     def get_agent_mask(self, batch_size, info):
@@ -140,14 +142,18 @@ class CommNetMLP(nn.Module):
 
         return num_agents_alive, agent_mask
 
-    def forward_state_encoder(self, x):
+    def forward_state_encoder(self, x, battery_status):
         hidden_state, cell_state = None, None
 
         if self.args.recurrent:
             x, extras = x
             x = self.net(x)
-            x = self.encoder(x)
-        
+            x = self.encoder(x) # output 128
+            x = self.encoder_2(x) # output 15
+
+            battery_status = self.encoder_battery(battery_status) # output 5
+            x = torch.cat((x, battery_status), 1) # output 20            
+
             if self.args.rnn_type == 'LSTM':
                 hidden_state, cell_state = extras
             else:
@@ -166,7 +172,7 @@ class CommNetMLP(nn.Module):
         return x, hidden_state, cell_state
 
 
-    def forward(self, x, info={}):
+    def forward(self, x, battery_status, info={}):
         # TODO: Update dimensions
         """Forward function for CommNet class, expects state, previous hidden
         and communication tensor.
@@ -195,7 +201,7 @@ class CommNetMLP(nn.Module):
         #     x = torch.cat([x, maxi], dim=-1)
         #     x = self.tanh(x)
 
-        x, hidden_state, cell_state = self.forward_state_encoder(x)
+        x, hidden_state, cell_state = self.forward_state_encoder(x, battery_status)
         # x = x.view(-1, x.size(-2), x.size(-1))
         # print ("x: ", x.size())
         # print ("hidden_state: ", hidden_state.size())
@@ -222,10 +228,10 @@ class CommNetMLP(nn.Module):
 
         for i in range(self.comm_passes):
             # Choose current or prev depending on recurrent
-            comm = hidden_state.view(batch_size, n, self.hid_size) if self.args.recurrent else hidden_state
+            comm = hidden_state.view(batch_size, n, self.encoder2_hid_size + 1) if self.args.recurrent else hidden_state
 
             # Get the next communication vector based on next hidden state
-            comm = comm.unsqueeze(-2).expand(-1, n, n, self.hid_size)
+            comm = comm.unsqueeze(-2).expand(-1, n, n, self.encoder2_hid_size + 1)
 
             # Create mask for masking self communication
             mask = self.comm_mask.view(1, n, n)
@@ -253,12 +259,10 @@ class CommNetMLP(nn.Module):
             if self.args.recurrent:
                 # skip connection - combine comm. matrix and encoded input for all agents
                 inp = x + c
-                # print ("x: ",x.size())
-                # print ("c: ",c.size())
 
-                inp = inp.view(batch_size * n, self.hid_size)
+                inp = inp.view(batch_size * n, self.encoder2_hid_size + 1)
 
-                # print ("inp: ",inp.size())
+                
 
                 output = self.f_module(inp, (hidden_state, cell_state))
 
@@ -277,7 +281,7 @@ class CommNetMLP(nn.Module):
         # v = torch.stack([self.value_head(hidden_state[:, i, :]) for i in range(n)])
         # v = v.view(hidden_state.size(0), n, -1)
         value_head = self.value_head(hidden_state)
-        h = hidden_state.view(batch_size*n, self.hid_size)
+        h = hidden_state.view(batch_size*n, self.encoder2_hid_size + 1)
 
         # print ("value_head: ",value_head.size())
         # print ("h: ",h.size())
@@ -303,6 +307,6 @@ class CommNetMLP(nn.Module):
 
     def init_hidden(self, batch_size):
         # dim 0 = num of layers * num of direction
-        return tuple(( torch.zeros(batch_size * self.nagents, self.hid_size, requires_grad=True),
-                       torch.zeros(batch_size * self.nagents, self.hid_size, requires_grad=True)))
+        return tuple(( torch.zeros(batch_size * self.nagents, self.encoder2_hid_size + 1, requires_grad=True),
+                       torch.zeros(batch_size * self.nagents, self.encoder2_hid_size + 1, requires_grad=True)))
 

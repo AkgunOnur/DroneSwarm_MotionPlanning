@@ -18,7 +18,8 @@ class MLP(nn.Module):
     def __init__(self, args, n_agents):
         super(MLP, self).__init__()
         self.num_inputs = 6*7*7
-        self.num_channels = (n_agents + 1)*5 + 1
+        self.hid_size_2 = 15
+        self.num_channels = (n_agents + 1)*5 + 2
         self.net = nn.Sequential(
             nn.Conv2d(self.num_channels, 3, 3, 2),        
             nn.ReLU(),
@@ -34,6 +35,9 @@ class MLP(nn.Module):
         self.args = args
         self.affine1 = nn.Linear(self.num_inputs, args.hid_size)
         self.affine2 = nn.Linear(args.hid_size, args.hid_size)
+        self.affine3 = nn.Linear(args.hid_size, self.hid_size_2)
+        self.affine4 = nn.Linear(n_agents, n_agents)
+
         self.continuous = args.continuous
         if self.continuous:
             self.action_mean = nn.Linear(args.hid_size, args.dim_actions)
@@ -45,8 +49,8 @@ class MLP(nn.Module):
 
     def forward(self, x, info={}):
         x = self.net(x)
-        x = self.tanh(self.affine1(x))
-        h = self.tanh(sum([self.affine2(x), x]))
+        x = self.tanh(self.affine1(x)) # out = 128
+        h = self.tanh(sum([self.affine2(x), x])) # out = 128
         v = self.value_head(h)
 
         if self.continuous:
