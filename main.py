@@ -26,7 +26,7 @@ parser.add_argument('--num_epochs', default=100, type=int,
                     help='number of training epochs')
 parser.add_argument('--epoch_size', type=int, default=10,
                     help='number of update iterations in an epoch')
-parser.add_argument('--batch_size', type=int, default=500,
+parser.add_argument('--batch_size', type=int, default=20,
                     help='number of steps before each update (per thread)')
 parser.add_argument('--nprocesses', type=int, default=16,
                     help='How many processes to run')
@@ -51,7 +51,7 @@ parser.add_argument('--entr', type=float, default=0,
 parser.add_argument('--value_coeff', type=float, default=0.01,
                     help='coeff for value loss term')
 # environment
-parser.add_argument('--env_name', default="Cartpole",
+parser.add_argument('--env_name', default="predator_prey",
                     help='name of the environment to run')
 parser.add_argument('--max_steps', default=20, type=int,
                     help='force to end the game after this many steps')

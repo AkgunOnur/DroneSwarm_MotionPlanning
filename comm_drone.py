@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
+import numpy as np
 
 from models_drone import MLP
 from action_utils import select_action, translate_action
@@ -63,6 +64,7 @@ class CommNetMLP(nn.Module):
         else:
             self.heads = nn.ModuleList([nn.Linear(self.encoder2_hid_size + 1, o)
                                         for o in args.naction_heads])
+            # print ("self.heads: ", self.heads)
         self.init_std = args.init_std if hasattr(args, 'comm_init_std') else 0.2
 
         # Mask for communication
@@ -142,8 +144,13 @@ class CommNetMLP(nn.Module):
 
         return num_agents_alive, agent_mask
 
-    def forward_state_encoder(self, x, battery_status):
+    def forward_state_encoder(self, x, battery_status, info):
         hidden_state, cell_state = None, None
+
+        # num_agents_alive = np.sum(info['alive_mask'])
+
+        # if self.continuous == False:
+        #     self.heads = nn.ModuleList([nn.Linear(self.encoder2_hid_size + 1, num_agents_alive)])
 
         if self.args.recurrent:
             x, extras = x
@@ -201,7 +208,7 @@ class CommNetMLP(nn.Module):
         #     x = torch.cat([x, maxi], dim=-1)
         #     x = self.tanh(x)
 
-        x, hidden_state, cell_state = self.forward_state_encoder(x, battery_status)
+        x, hidden_state, cell_state = self.forward_state_encoder(x, battery_status, info)
         # x = x.view(-1, x.size(-2), x.size(-1))
         # print ("x: ", x.size())
         # print ("hidden_state: ", hidden_state.size())
@@ -212,6 +219,8 @@ class CommNetMLP(nn.Module):
         # print ("batch_size: ", batch_size)
 
         num_agents_alive, agent_mask = self.get_agent_mask(batch_size, info)
+        # print ("num_agents_alive: ", num_agents_alive)
+        
 
         # print ("num_agents_alive: ", num_agents_alive)
         # print ("agent_mask: ", agent_mask.size())
@@ -295,6 +304,7 @@ class CommNetMLP(nn.Module):
         else:
             # discrete actions
             action = [F.log_softmax(head(h), dim=-1) for head in self.heads]
+            # print ("action: ", action)
 
         if self.args.recurrent:
             return action, value_head, (hidden_state.clone(), cell_state.clone())

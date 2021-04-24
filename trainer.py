@@ -51,9 +51,9 @@ class Trainer(object):
                     prev_hid = self.policy_net.init_hidden(batch_size=state.shape[0])
 
                 x = [state, prev_hid]
-                print ("state: ", state.size())
-                print ("prev_hid0: ", prev_hid[0].size())
-                print ("prev_hid1: ", prev_hid[1].size())
+                # print ("state: ", state.size())
+                # print ("prev_hid0: ", prev_hid[0].size())
+                # print ("prev_hid1: ", prev_hid[1].size())
                 action_out, value, prev_hid = self.policy_net(x, info)
                 if (t + 1) % self.args.detach_gap == 0:
                     if self.args.rnn_type == 'LSTM':
@@ -196,9 +196,14 @@ class Trainer(object):
             action_means, action_log_stds, action_stds = action_out
             log_prob = normal_log_density(actions, action_means, action_log_stds, action_stds)
         else:
+            print ("action_out0: ", action_out[0].size())
+            print ("action_out1: ", action_out[1].size())
+            print ("num_actions: ", num_actions)
             log_p_a = [action_out[i].view(-1, num_actions[i]) for i in range(dim_actions)]
             actions = actions.contiguous().view(-1, dim_actions)
-
+            print ("log_p_a0: ", log_p_a[0].size())
+            print ("log_p_a1: ", log_p_a[1].size())
+            print ("actions: ", actions.size())
             if self.args.advantages_per_action:
                 log_prob = multinomials_log_densities(actions, log_p_a)
             else:
@@ -232,7 +237,9 @@ class Trainer(object):
             if self.args.entr > 0:
                 loss -= self.args.entr * entropy
 
-
+        print ("loss: ", loss)
+        print ("action_loss: ", action_loss)
+        print ("value_loss: ", value_loss)
         loss.backward()
 
         return stat

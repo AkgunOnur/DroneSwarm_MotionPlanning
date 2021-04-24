@@ -28,8 +28,8 @@ class CommNetMLP(nn.Module):
         self.recurrent = args.recurrent
 
         self.continuous = args.continuous
-        print ("naction_heads: ", args.naction_heads)
-        print ("comm_passes: ", args.comm_passes)
+        # print ("naction_heads: ", args.naction_heads)
+        # print ("comm_passes: ", args.comm_passes)
         if self.continuous:
             self.action_mean = nn.Linear(args.hid_size, args.dim_actions)
             self.action_log_std = nn.Parameter(torch.zeros(1, args.dim_actions))
@@ -130,10 +130,6 @@ class CommNetMLP(nn.Module):
             x = self.tanh(x)
             hidden_state = x
 
-        print ("x: ", x.size())
-        print ("hidden_state: ", hidden_state.size())
-        print ("cell_state: ", cell_state.size())
-        stop
         return x, hidden_state, cell_state
 
 

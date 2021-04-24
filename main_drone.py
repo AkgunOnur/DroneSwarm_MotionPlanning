@@ -23,11 +23,9 @@ torch.set_default_tensor_type('torch.DoubleTensor')
 parser = argparse.ArgumentParser(description='PyTorch RL trainer')
 # training
 # note: number of steps per epoch = epoch_size X batch_size x nprocesses
-parser.add_argument('--num_epochs', default=50000, type=int,
+parser.add_argument('--num_epochs', default=30000, type=int,
                     help='number of training epochs')
-parser.add_argument('--epoch_size', type=int, default=10,
-                    help='number of update iterations in an epoch')
-parser.add_argument('--batch_size', type=int, default=8,
+parser.add_argument('--batch_size', type=int, default=128,
                     help='number of steps before each update (per thread)')
 parser.add_argument('--nprocesses', type=int, default=1,
                     help='How many processes to run')
@@ -221,8 +219,10 @@ log['entropy'] = LogField(list(), True, 'epoch', 'num_steps')
 def train_run(num_epochs):
     # load("./model/model_train_0.pt")
     best_reward_train = -np.Inf
+    best_covered_grids = 0.0
     best_reward_test = -np.Inf
-    eval_period = 50
+    eval_period = 100
+    uncertainty_threshold = 0.6
 
     for ep in range(num_epochs):
         epoch_begin_time = time.time()
@@ -230,7 +230,7 @@ def train_run(num_epochs):
         # for n in range(args.epoch_size):
             # if n == args.epoch_size - 1 and args.display:
             #     trainer.display = True
-        s = trainer.train_batch(ep)
+        s, uncertainty_values = trainer.train_batch(ep)
         merge_stat(s, stat)
             # trainer.display = False
 
@@ -270,18 +270,21 @@ def train_run(num_epochs):
         #             win=k, opts=dict(xlabel=v.x_axis, ylabel=k))
 
         mean_reward = np.mean(stat["reward"])
-        if mean_reward > best_reward_train:
-            print ("Better reward value in Train mode is obtained! The model is being saved!")
-            best_reward_train = mean_reward 
+        uncertainty_map = np.zeros_like(uncertainty_values)
+        uncertainty_map[uncertainty_values <= uncertainty_threshold] = 1.0
+        sum_covered_grids = np.sum(uncertainty_map)
+        if sum_covered_grids > best_covered_grids:
+            print ("Better covered value in Train mode is obtained! The model is being saved!")
+            best_covered_grids = sum_covered_grids 
             save(args.save, ep+1, "train")
 
         if (ep + 1) % eval_period == 0:
             print ("\n In eval mode")
-            test_stat = tester.test_batch(1, save=False)
+            test_stat = tester.test_batch(save=False)
             test_reward = np.mean(test_stat["reward"])
             if test_reward > best_reward_test:
                 print ("The model is being saved!")
-                best_reward_test = mean_reward
+                best_reward_test = test_reward
                 save(args.save, ep+1, "test")
 
         # if args.save != '':
@@ -293,6 +296,7 @@ def save(path, epoch, save_type):
     d['log'] = log
     d['trainer'] = trainer.state_dict()
     file_path = path + "model_" + save_type + "_" + str(epoch) + ".pt"
+    # file_path = "./model/" + "model_" + save_type + "_" + str(epoch) + ".pt"
     torch.save(d, file_path)
 
 def load(path):
@@ -317,8 +321,8 @@ if args.load != '':
 if args.mode == "Train":
     train_run(args.num_epochs)
 else:
-    load("./model/model_train_3492.pt")
-    tester.test_batch(1)
+    # load("./model/model_train_3492.pt")
+    tester.test_batch()
 
 if args.display:
     env.end_display()

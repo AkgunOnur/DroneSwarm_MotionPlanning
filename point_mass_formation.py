@@ -1,7 +1,7 @@
 import gym
 from gym import spaces, error, utils
 from gym.utils import seeding
-#from gym.envs.classic_control import rendering
+# from gym.envs.classic_control import rendering
 import numpy as np
 import configparser
 from os import path
@@ -36,6 +36,7 @@ class QuadrotorFormation(gym.Env):
         self.quadrotors = []
         self.viewer = None
         self.dtau = 1e-3
+        self.agent_status = None
 
         if self.is_centralized:
             self.action_space = spaces.Discrete(self.n_action**self.n_agents)
@@ -104,6 +105,8 @@ class QuadrotorFormation(gym.Env):
         N_overvisit = 15.0
         obstacle_collision = np.zeros(self.n_agents)
         total_explored_indices = []
+        info = dict()
+
         for i in range(self.n_agents):
             total_explored_indices.append([])
 
@@ -121,8 +124,14 @@ class QuadrotorFormation(gym.Env):
         self.uncertainty_values[self.no_obstacle_indices] = np.clip(
                     self.uncertainty_values[self.no_obstacle_indices] + uncertainty_constant, 1e-6, 1.0)
 
+        print ("Agent status: ", self.agent_status)
 
         for agent_ind in range(self.n_agents):
+            
+            if self.agent_status[agent_ind] == 0:
+                # print ("Agent {0} failed, it can't fly any longer!".format(agent_ind+1))
+                continue
+
             current_action = agents_actions[agent_ind]
             drone_prev_state, drone_current_state = self.get_drone_des_grid(agent_ind, current_action)
             current_pos = [drone_current_state[0],drone_current_state[1],drone_current_state[2]]
@@ -139,17 +148,21 @@ class QuadrotorFormation(gym.Env):
             if self.check_collision(explored_indices[0:self.N_closest_grid]): # just check the nearest 4 grids to the drone, whether it collides with the obstacle
                 # print ("drone_prev_state: ", drone_prev_state)
                 # print ("drone_current_state: ", drone_current_state)
-                print ("Agent {} has collided with the obstacle!".format(agent_ind+1))
+                print ("Agent {} has collided with the obstacle! It can no longer fly!".format(agent_ind+1))
+                self.agent_status[agent_ind] = 0 # this agent failed 
                 obstacle_collision[agent_ind] = 1
                 reward_list[agent_ind] = collision_reward
                 self.quadrotors[agent_ind].state = np.copy(drone_prev_state)
-                done = True
+                self.quadrotors[agent_ind].state[2] = 0.0 # drone falls into (x, y, 0) position. 
+                # done = True
                 continue
 
             if self.battery_status[agent_ind] <= 1e-2 and current_grid not in self.battery_indices: # if the battery status of an agent is less than %1, finish the episode
                 reward_list[agent_ind] = collision_reward
-                done = True
-                print ("Agent {} is out of battery!".format(agent_ind+1))
+                # done = True
+                self.agent_status[agent_ind] = 0 # this agent failed 
+                self.quadrotors[agent_ind].state[2] = 0.0 # drone falls into (x, y, 0) position. 
+                print ("Agent {} is out of battery! It can no longer fly!".format(agent_ind+1))
             elif current_grid in self.battery_indices and self.battery_status[agent_ind] <= battery_critical_level: #if the agent goes the battery station with low battery, get positive reward
                 reward_list[agent_ind] = battery_reward
                 self.battery_status[agent_ind] = 1.0
@@ -159,6 +172,10 @@ class QuadrotorFormation(gym.Env):
                 self.battery_status[agent_ind] = 1.0
                 print ("The battery level of Agent {0} is {1:.3}. Negative reward!".format(agent_ind+1, self.battery_status[agent_ind]))
 
+            if np.sum(self.agent_status) == 0:
+                print ("No alive agent is left!")
+                done = True
+
 
             total_explored_indices[agent_ind] = explored_indices
 
@@ -166,7 +183,7 @@ class QuadrotorFormation(gym.Env):
 
 
         for agent_ind in range(self.n_agents):
-            if obstacle_collision[agent_ind] == 1:
+            if obstacle_collision[agent_ind] == 1 or self.agent_status[agent_ind] == 0:
                 continue
             else:
                 indices = total_explored_indices[agent_ind]
@@ -196,7 +213,11 @@ class QuadrotorFormation(gym.Env):
                             reward_list[agent_ind] = collision_reward
                             reward_list[agent_other_ind] = collision_reward
                             done = True
-                            print ("Agent {} and {} has collided with each other!".format(agent_ind+1, agent_other_ind+1))
+                            self.agent_status[agent_ind] = 0 # this agent failed 
+                            self.agent_status[agent_other_ind] = 0 # this agent failed 
+                            self.quadrotors[agent_ind].state[2] = 0.0 # drone falls into (x, y, 0) position. 
+                            self.quadrotors[agent_other_ind].state[2] = 0.0 # drone falls into (x, y, 0) position. 
+                            print ("Agent {} and {} has collided with each other! They can no longer fly!".format(agent_ind+1, agent_other_ind+1))
                         elif drone_distance <= max_distance:
                             reward_list[agent_ind] += (collision_reward/2) 
                             reward_list[agent_other_ind] += (collision_reward/2) 
@@ -216,7 +237,7 @@ class QuadrotorFormation(gym.Env):
             # print ("Agent {0}".format(agent_ind+1))
             # print ("Current reward: {0:.4}".format(reward_list[agent_ind]))
 
-            # sleep(2.0)
+        # sleep(0.25)
 
         
 
@@ -226,7 +247,9 @@ class QuadrotorFormation(gym.Env):
         # else:
         #     return self.get_observation(), reward_list, done, {}
 
-        return self.get_observation(), reward_list, done, {}
+        info['alive_mask'] = np.copy(self.agent_status)
+
+        return self.get_observation(), reward_list, done, info
 
         
 
@@ -265,8 +288,11 @@ class QuadrotorFormation(gym.Env):
         self.grid_visits = np.zeros((self.uncertainty_grids.shape[0], ))
         self.agents_stacks = [deque([],maxlen=self.N_frame) for _ in range(self.n_agents)]
         self.uncertainty_stacks = deque([],maxlen=self.N_frame)
+        self.agent_status = np.ones(self.n_agents)
         
         self.iteration = 1
+        info = dict()
+        info['alive_mask'] = np.copy(self.agent_status)
 
         #There will be two obstacles around (x1,x2,y1,y2)=(-9,-7,5,16) and (x1,x2,y1,y2)=(7,9,-10,10) with -+ 3m deviation in x and y 
         x_rnd = 0 #np.random.uniform(-3,3)
@@ -354,7 +380,7 @@ class QuadrotorFormation(gym.Env):
                 self.agents_stacks[agent_ind].append(drone_stack)                
 
 
-        return self.get_observation()
+        return self.get_observation(), info 
 
 
     def get_drone_stack(self, agent_ind):
@@ -469,6 +495,8 @@ class QuadrotorFormation(gym.Env):
 
 
     def visualize(self, agent_pos_dict=None, mode='human'):
+        charge_station = []
+        station_transform = []
         if self.viewer is None:
             self.viewer = rendering.Viewer(500, 500)
             self.viewer.set_bounds(-self.x_lim,
@@ -486,6 +514,21 @@ class QuadrotorFormation(gym.Env):
                 obstacle.add_attr(obstacle_transform)
                 obstacle.set_color(.8, .3, .3)
                 self.viewer.add_geom(obstacle)
+
+            # obstacle_pos_xy = [x_min, y_min, z_min, x_max, y_max, z_max]
+            # l,r,t,b = -cartwidth/2, cartwidth/2, cartheight/2, -cartheight/2
+            # axleoffset =cartheight/4.0
+            # cart = rendering.FilledPolygon([(l,b), (l,t), (r,t), (r,b)])
+            for j in range(self.battery_points.shape[0]):
+                charge_station.append(rendering.make_polygon([(self.battery_points[j][0],self.battery_points[j][1]), 
+                                                (self.battery_points[j][0],self.battery_points[j][4]), 
+                                                (self.battery_points[j][3],self.battery_points[j][4]), 
+                                                (self.battery_points[j][3],self.battery_points[j][1])]))
+
+                station_transform.append(rendering.Transform())
+                charge_station[j].add_attr(station_transform[j])
+                charge_station[j].set_color(.1, .5, .8)
+                self.viewer.add_geom(charge_station[j])
 
             self.drone_transforms = []
             self.drones = []
