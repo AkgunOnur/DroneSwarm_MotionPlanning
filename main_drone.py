@@ -25,7 +25,7 @@ parser = argparse.ArgumentParser(description='PyTorch RL trainer')
 # note: number of steps per epoch = epoch_size X batch_size x nprocesses
 parser.add_argument('--num_epochs', default=30000, type=int,
                     help='number of training epochs')
-parser.add_argument('--batch_size', type=int, default=128,
+parser.add_argument('--batch_size', type=int, default=80,
                     help='number of steps before each update (per thread)')
 parser.add_argument('--nprocesses', type=int, default=1,
                     help='How many processes to run')

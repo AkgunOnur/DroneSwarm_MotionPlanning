@@ -25,21 +25,21 @@ class Trainer(object):
             lr = args.lrate, alpha=0.97, eps=1e-6)
         self.params = [p for p in self.policy_net.parameters()]
         self.num_inputs = 294
-        self.N_iteration = 1000
+        self.N_iteration = 500
+
+        self.misc_arr = np.zeros((self.N_iteration, self.args.nagents))
+        self.state_arr = np.zeros((self.N_iteration, self.args.nagents, (self.args.nagents+1)*5+2, self.env.out_shape, self.env.out_shape))
+        self.next_state_arr = np.zeros((self.N_iteration, self.args.nagents, (self.args.nagents+1)*5+2, self.env.out_shape, self.env.out_shape))
+        self.action_arr = np.zeros((self.N_iteration, self.args.nagents))
+        self.action_out_arr = np.zeros((self.N_iteration, self.args.nagents, self.env.n_action))
+        self.value_arr = np.zeros((self.N_iteration, self.args.nagents))
+        self.episode_mask_arr = np.zeros((self.N_iteration, self.args.nagents))
+        self.episode_mini_mask_arr = np.zeros((self.N_iteration, self.args.nagents))
+        self.reward_arr = np.zeros((self.N_iteration, self.args.nagents))
 
 
     def get_episode(self, epoch):
         episode = []
-        
-        misc_arr = np.zeros((self.N_iteration, self.args.nagents))
-        state_arr = np.zeros((self.N_iteration, self.args.nagents, (self.args.nagents+1)*5+2, self.env.out_shape, self.env.out_shape))
-        next_state_arr = np.zeros((self.N_iteration, self.args.nagents, (self.args.nagents+1)*5+2, self.env.out_shape, self.env.out_shape))
-        action_arr = np.zeros((self.N_iteration, self.args.nagents))
-        action_out_arr = np.zeros((self.N_iteration, self.args.nagents, self.env.n_action))
-        value_arr = np.zeros((self.N_iteration, self.args.nagents))
-        episode_mask_arr = np.zeros((self.N_iteration, self.args.nagents))
-        episode_mini_mask_arr = np.zeros((self.N_iteration, self.args.nagents))
-        reward_arr = np.zeros((self.N_iteration, self.args.nagents))
 
         stat = dict()
         info = dict()
@@ -128,18 +128,18 @@ class Trainer(object):
             # if should_display:
             #     self.env.display()
 
-            trans = Transition(state, action, action_out, value, episode_mask, episode_mini_mask, next_state, reward, misc)
-            
-            episode.append(trans)
-            misc_arr[t,:] = np.copy(misc['alive_mask'])
-            state_arr[t,:,:,:,:] = np.copy(state)
-            next_state_arr[t,:,:,:,:] = np.copy(next_state)
-            action_arr[t,:] = np.copy(action)
-            action_out_arr[t,:, :] = np.copy(action_out[0].detach().numpy())
-            value_arr[t, :] = np.copy(value.detach().numpy()).ravel()
-            episode_mask_arr[t, :] = np.copy(episode_mask)
-            episode_mini_mask_arr[t, :] = np.copy(episode_mini_mask)
-            reward_arr[t,:] = np.copy(reward)
+            # trans = Transition(state, action, action_out, value, episode_mask, episode_mini_mask, next_state, reward, misc)
+            # episode.append(trans)
+
+            self.misc_arr[t,:] = np.copy(misc['alive_mask'])
+            self.state_arr[t,:,:,:,:] = np.copy(state)
+            self.next_state_arr[t,:,:,:,:] = np.copy(next_state)
+            self.action_arr[t,:] = np.copy(action)
+            self.action_out_arr[t,:, :] = np.copy(action_out[0].detach().numpy())
+            self.value_arr[t, :] = np.copy(value.detach().numpy()).ravel()
+            self.episode_mask_arr[t, :] = np.copy(episode_mask)
+            self.episode_mini_mask_arr[t, :] = np.copy(episode_mini_mask)
+            self.reward_arr[t,:] = np.copy(reward)
             
             state = np.copy(next_state)
             
@@ -172,7 +172,7 @@ class Trainer(object):
         # print ("reward[0:final_step]: ", reward[0:final_step])
         # print ("misc[0:final_step]: ", misc[0:final_step])
 
-        batch = state_arr[0:final_step], action_arr[0:final_step], action_out_arr[0:final_step], value_arr[0:final_step], episode_mask_arr[0:final_step], episode_mini_mask_arr[0:final_step], next_state_arr[0:final_step], reward_arr[0:final_step], misc_arr[0:final_step]
+        batch = self.state_arr[0:final_step], self.action_arr[0:final_step], self.action_out_arr[0:final_step], self.value_arr[0:final_step], self.episode_mask_arr[0:final_step], self.episode_mini_mask_arr[0:final_step], self.next_state_arr[0:final_step], self.reward_arr[0:final_step], self.misc_arr[0:final_step]
         
         return batch, stat
 
@@ -363,8 +363,9 @@ class Trainer(object):
         self.optimizer.load_state_dict(state)
 
 
-class Tester(object):
+class Tester(Trainer):
     def __init__(self, args, policy_net, env, is_centralized = False):
+        super().__init__(args, policy_net, env, is_centralized)
         np.set_printoptions(precision=2)
         self.args = args
         self.policy_net = policy_net
@@ -376,21 +377,10 @@ class Tester(object):
             lr = args.lrate, alpha=0.97, eps=1e-6)
         self.params = [p for p in self.policy_net.parameters()]
         self.num_inputs = 294
-        self.N_iteration = 1000
 
 
     def get_episode(self, epoch):
         episode = []
-        
-        misc_arr = np.zeros((self.N_iteration, self.args.nagents))
-        state_arr = np.zeros((self.N_iteration, self.args.nagents, (self.args.nagents+1)*5+2, self.env.out_shape, self.env.out_shape))
-        next_state_arr = np.zeros((self.N_iteration, self.args.nagents, (self.args.nagents+1)*5+2, self.env.out_shape, self.env.out_shape))
-        action_arr = np.zeros((self.N_iteration, self.args.nagents))
-        action_out_arr = np.zeros((self.N_iteration, self.args.nagents, self.env.n_action))
-        value_arr = np.zeros((self.N_iteration, self.args.nagents))
-        episode_mask_arr = np.zeros((self.N_iteration, self.args.nagents))
-        episode_mini_mask_arr = np.zeros((self.N_iteration, self.args.nagents))
-        reward_arr = np.zeros((self.N_iteration, self.args.nagents))
 
         stat = dict()
         info = dict()
@@ -479,18 +469,18 @@ class Tester(object):
             # if should_display:
             #     self.env.display()
 
-            trans = Transition(state, action, action_out, value, episode_mask, episode_mini_mask, next_state, reward, misc)
+            # trans = Transition(state, action, action_out, value, episode_mask, episode_mini_mask, next_state, reward, misc)
             
-            episode.append(trans)
-            misc_arr[t,:] = np.copy(misc['alive_mask'])
-            state_arr[t,:,:,:,:] = np.copy(state)
-            next_state_arr[t,:,:,:,:] = np.copy(next_state)
-            action_arr[t,:] = np.copy(action)
-            action_out_arr[t,:, :] = np.copy(action_out[0].detach().numpy())
-            value_arr[t, :] = np.copy(value.detach().numpy()).ravel()
-            episode_mask_arr[t, :] = np.copy(episode_mask)
-            episode_mini_mask_arr[t, :] = np.copy(episode_mini_mask)
-            reward_arr[t,:] = np.copy(reward)
+            # episode.append(trans)
+            self.misc_arr[t,:] = np.copy(misc['alive_mask'])
+            self.state_arr[t,:,:,:,:] = np.copy(state)
+            self.next_state_arr[t,:,:,:,:] = np.copy(next_state)
+            self.action_arr[t,:] = np.copy(action)
+            self.action_out_arr[t,:, :] = np.copy(action_out[0].detach().numpy())
+            self.value_arr[t, :] = np.copy(value.detach().numpy()).ravel()
+            self.episode_mask_arr[t, :] = np.copy(episode_mask)
+            self.episode_mini_mask_arr[t, :] = np.copy(episode_mini_mask)
+            self.reward_arr[t,:] = np.copy(reward)
             
             state = np.copy(next_state)
             
@@ -500,7 +490,7 @@ class Tester(object):
         stat['num_steps'] = t + 1
         stat['steps_taken'] = stat['num_steps']
 
-        batch = state_arr[0:final_step], action_arr[0:final_step], action_out_arr[0:final_step], value_arr[0:final_step], episode_mask_arr[0:final_step], episode_mini_mask_arr[0:final_step], next_state_arr[0:final_step], reward_arr[0:final_step], misc_arr[0:final_step]
+        batch = self.state_arr[0:final_step], self.action_arr[0:final_step], self.action_out_arr[0:final_step], self.value_arr[0:final_step], self.episode_mask_arr[0:final_step], self.episode_mini_mask_arr[0:final_step], self.next_state_arr[0:final_step], self.reward_arr[0:final_step], self.misc_arr[0:final_step]
         
         return batch, stat
 
