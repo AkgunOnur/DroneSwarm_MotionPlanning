@@ -1,0 +1,322 @@
+====================================================================================================
+Model log:
+
+CommNetMLP(
+  (net): Sequential(
+    (0): Conv2d(32, 3, kernel_size=(3, 3), stride=(2, 2))
+    (1): ReLU()
+    (2): AvgPool2d(kernel_size=2, stride=2, padding=0)
+    (3): Conv2d(3, 6, kernel_size=(3, 3), stride=(1, 1))
+    (4): ReLU()
+    (5): AvgPool2d(kernel_size=2, stride=2, padding=0)
+    (6): Conv2d(6, 6, kernel_size=(3, 3), stride=(1, 1))
+    (7): ReLU()
+    (8): Flatten()
+  )
+  (heads): ModuleList(
+    (0): Linear(in_features=16, out_features=6, bias=True)
+  )
+  (encoder): Linear(in_features=294, out_features=128, bias=True)
+  (encoder_2): Linear(in_features=128, out_features=15, bias=True)
+  (encoder_battery): Linear(in_features=1, out_features=1, bias=True)
+  (hidd_encoder): Linear(in_features=128, out_features=128, bias=True)
+  (f_module): LSTMCell(16, 16)
+  (C_modules): ModuleList(
+    (0): Linear(in_features=16, out_features=16, bias=True)
+  )
+  (tanh): Tanh()
+  (value_head): Linear(in_features=16, out_features=1, bias=True)
+)
+====================================================================================================
+
+Test mode is executed! 
+
+Selected model is  ./model/model_train_1.pt
+Episode: 1 Map coverage: 9.369
+Episode: 2 Map coverage: 11.66
+Episode: 3 Map coverage: 11.88
+Episode: 4 Map coverage: 9.801
+Episode: 5 Map coverage: 16.67
+Episode: 6 Map coverage: 16.78
+Episode: 7 Map coverage: 12.11
+Episode: 8 Map coverage: 15.88
+Episode: 9 Map coverage: 13.77
+Episode: 10 Map coverage: 10.34
+=====================================================
+=====================================================
+Average map coverage:  12.825698988697203
+Std map coverage:  2.658931836367242
+=====================================================
+=====================================================
+Selected model is  ./model/model_train_1692.pt
+Episode: 1 Map coverage: 13.59
+Episode: 2 Map coverage: 13.36
+Episode: 3 Map coverage: 9.369
+Episode: 4 Map coverage: 10.92
+Episode: 5 Map coverage: 16.88
+Episode: 6 Map coverage: 16.08
+Episode: 7 Map coverage: 10.43
+Episode: 8 Map coverage: 13.0
+Episode: 9 Map coverage: 14.68
+Episode: 10 Map coverage: 13.31
+=====================================================
+=====================================================
+Average map coverage:  13.160321237358716
+Std map coverage:  2.2761257022856585
+=====================================================
+=====================================================
+Selected model is  ./model/model_test_1900.pt
+Episode: 1 Map coverage: 11.32
+Episode: 2 Map coverage: 11.5
+Episode: 3 Map coverage: 15.35
+Episode: 4 Map coverage: 17.27
+Episode: 5 Map coverage: 13.82
+Episode: 6 Map coverage: 12.61
+Episode: 7 Map coverage: 14.78
+Episode: 8 Map coverage: 12.64
+Episode: 9 Map coverage: 9.622
+Episode: 10 Map coverage: 11.67
+=====================================================
+=====================================================
+Average map coverage:  13.057703747769185
+Std map coverage:  2.146276417601668
+=====================================================
+=====================================================
+Selected model is  ./model/model_train_24.pt
+Episode: 1 Map coverage: 9.741
+Episode: 2 Map coverage: 13.06
+Episode: 3 Map coverage: 13.99
+Episode: 4 Map coverage: 12.49
+Episode: 5 Map coverage: 14.2
+Episode: 6 Map coverage: 9.86
+Episode: 7 Map coverage: 9.012
+Episode: 8 Map coverage: 13.8
+Episode: 9 Map coverage: 17.12
+Episode: 10 Map coverage: 16.05
+=====================================================
+=====================================================
+Average map coverage:  12.932778108268886
+Std map coverage:  2.5673414550475675
+=====================================================
+=====================================================
+Selected model is  ./model/model_train_2.pt
+Episode: 1 Map coverage: 15.53
+Episode: 2 Map coverage: 10.9
+Episode: 3 Map coverage: 16.94
+Episode: 4 Map coverage: 14.25
+Episode: 5 Map coverage: 12.54
+Episode: 6 Map coverage: 9.533
+Episode: 7 Map coverage: 13.41
+Episode: 8 Map coverage: 10.41
+Episode: 9 Map coverage: 13.5
+Episode: 10 Map coverage: 14.44
+=====================================================
+=====================================================
+Average map coverage:  13.145449137418202
+Std map coverage:  2.2156778724339476
+=====================================================
+=====================================================
+Selected model is  ./model/model_train_581.pt
+Episode: 1 Map coverage: 14.37
+Episode: 2 Map coverage: 11.14
+Episode: 3 Map coverage: 13.5
+Episode: 4 Map coverage: 9.697
+Episode: 5 Map coverage: 6.454
+Episode: 6 Map coverage: 11.9
+Episode: 7 Map coverage: 9.161
+Episode: 8 Map coverage: 10.93
+Episode: 9 Map coverage: 10.17
+Episode: 10 Map coverage: 15.88
+=====================================================
+=====================================================
+Average map coverage:  11.320642474717431
+Std map coverage:  2.6015022680749404
+=====================================================
+=====================================================
+Selected model is  ./model/model_train_336.pt
+Episode: 1 Map coverage: 14.49
+Episode: 2 Map coverage: 12.54
+Episode: 3 Map coverage: 11.14
+Episode: 4 Map coverage: 14.04
+Episode: 5 Map coverage: 12.22
+Episode: 6 Map coverage: 13.67
+Episode: 7 Map coverage: 10.6
+Episode: 8 Map coverage: 11.3
+Episode: 9 Map coverage: 11.76
+Episode: 10 Map coverage: 8.626
+=====================================================
+=====================================================
+Average map coverage:  12.03896490184414
+Std map coverage:  1.6750401994268846
+=====================================================
+=====================================================
+Selected model is  ./model/model_train_83.pt
+Episode: 1 Map coverage: 11.04
+Episode: 2 Map coverage: 11.67
+Episode: 3 Map coverage: 14.08
+Episode: 4 Map coverage: 10.59
+Episode: 5 Map coverage: 16.23
+Episode: 6 Map coverage: 14.43
+Episode: 7 Map coverage: 12.78
+Episode: 8 Map coverage: 9.488
+Episode: 9 Map coverage: 11.44
+Episode: 10 Map coverage: 11.85
+=====================================================
+=====================================================
+Average map coverage:  12.35871505056514
+Std map coverage:  1.9253942351583961
+=====================================================
+=====================================================
+Selected model is  ./model/model_test_500.pt
+Episode: 1 Map coverage: 14.13
+Episode: 2 Map coverage: 14.84
+Episode: 3 Map coverage: 12.45
+Episode: 4 Map coverage: 14.28
+Episode: 5 Map coverage: 14.14
+Episode: 6 Map coverage: 10.41
+Episode: 7 Map coverage: 9.845
+Episode: 8 Map coverage: 14.98
+Episode: 9 Map coverage: 8.849
+Episode: 10 Map coverage: 16.36
+=====================================================
+=====================================================
+Average map coverage:  13.027959547888162
+Std map coverage:  2.3871087116011718
+=====================================================
+=====================================================
+Selected model is  ./model/model_test_800.pt
+Episode: 1 Map coverage: 16.63
+Episode: 2 Map coverage: 12.46
+Episode: 3 Map coverage: 9.503
+Episode: 4 Map coverage: 12.28
+Episode: 5 Map coverage: 11.99
+Episode: 6 Map coverage: 12.48
+Episode: 7 Map coverage: 11.3
+Episode: 8 Map coverage: 13.94
+Episode: 9 Map coverage: 14.2
+Episode: 10 Map coverage: 12.51
+=====================================================
+=====================================================
+Average map coverage:  12.729030339083879
+Std map coverage:  1.7942244024018277
+=====================================================
+=====================================================
+Selected model is  ./model/model_test_3900.pt
+Episode: 1 Map coverage: 14.54
+Episode: 2 Map coverage: 12.48
+Episode: 3 Map coverage: 15.59
+Episode: 4 Map coverage: 12.78
+Episode: 5 Map coverage: 16.15
+Episode: 6 Map coverage: 9.86
+Episode: 7 Map coverage: 9.236
+Episode: 8 Map coverage: 13.94
+Episode: 9 Map coverage: 13.91
+Episode: 10 Map coverage: 12.4
+=====================================================
+=====================================================
+Average map coverage:  13.08744794765021
+Std map coverage:  2.1290801869835074
+=====================================================
+=====================================================
+Selected model is  ./model/model_test_9200.pt
+Episode: 1 Map coverage: 18.0
+Episode: 2 Map coverage: 7.555
+Episode: 3 Map coverage: 15.04
+Episode: 4 Map coverage: 13.55
+Episode: 5 Map coverage: 13.3
+Episode: 6 Map coverage: 11.17
+Episode: 7 Map coverage: 9.816
+Episode: 8 Map coverage: 13.83
+Episode: 9 Map coverage: 9.34
+Episode: 10 Map coverage: 12.8
+=====================================================
+=====================================================
+Average map coverage:  12.439024390243905
+Std map coverage:  2.8914605811451586
+=====================================================
+=====================================================
+Selected model is  ./model/model_train_82.pt
+Episode: 1 Map coverage: 13.31
+Episode: 2 Map coverage: 13.28
+Episode: 3 Map coverage: 10.68
+Episode: 4 Map coverage: 11.42
+Episode: 5 Map coverage: 17.06
+Episode: 6 Map coverage: 14.29
+Episode: 7 Map coverage: 11.59
+Episode: 8 Map coverage: 8.016
+Episode: 9 Map coverage: 14.59
+Episode: 10 Map coverage: 10.98
+=====================================================
+=====================================================
+Average map coverage:  12.520820939916717
+Std map coverage:  2.3951141801265186
+=====================================================
+=====================================================
+Selected model is  ./model/model_test_100.pt
+Episode: 1 Map coverage: 10.69
+Episode: 2 Map coverage: 10.56
+Episode: 3 Map coverage: 12.8
+Episode: 4 Map coverage: 14.71
+Episode: 5 Map coverage: 13.64
+Episode: 6 Map coverage: 11.81
+Episode: 7 Map coverage: 18.31
+Episode: 8 Map coverage: 10.44
+Episode: 9 Map coverage: 12.28
+Episode: 10 Map coverage: 11.44
+=====================================================
+=====================================================
+Average map coverage:  12.668054729327782
+Std map coverage:  2.2943442647082968
+=====================================================
+=====================================================
+Selected model is  ./model/model_train_1104.pt
+Episode: 1 Map coverage: 17.83
+Episode: 2 Map coverage: 12.11
+Episode: 3 Map coverage: 9.548
+Episode: 4 Map coverage: 12.39
+Episode: 5 Map coverage: 14.01
+Episode: 6 Map coverage: 9.845
+Episode: 7 Map coverage: 9.012
+Episode: 8 Map coverage: 18.02
+Episode: 9 Map coverage: 15.07
+Episode: 10 Map coverage: 9.012
+=====================================================
+=====================================================
+Average map coverage:  12.684414039262347
+Std map coverage:  3.2821848538444836
+=====================================================
+=====================================================
+Selected model is  ./model/model_train_224.pt
+Episode: 1 Map coverage: 13.79
+Episode: 2 Map coverage: 11.26
+Episode: 3 Map coverage: 15.81
+Episode: 4 Map coverage: 12.69
+Episode: 5 Map coverage: 14.23
+Episode: 6 Map coverage: 14.77
+Episode: 7 Map coverage: 10.22
+Episode: 8 Map coverage: 16.24
+Episode: 9 Map coverage: 8.105
+Episode: 10 Map coverage: 16.88
+=====================================================
+=====================================================
+Average map coverage:  13.398274836406902
+Std map coverage:  2.6824622420191258
+=====================================================
+=====================================================
+Selected model is  ./model/model_train_8.pt
+Episode: 1 Map coverage: 15.45
+Episode: 2 Map coverage: 13.64
+Episode: 3 Map coverage: 11.56
+Episode: 4 Map coverage: 10.48
+Episode: 5 Map coverage: 10.87
+Episode: 6 Map coverage: 14.69
+Episode: 7 Map coverage: 13.22
+Episode: 8 Map coverage: 10.17
+Episode: 9 Map coverage: 10.63
+Episode: 10 Map coverage: 13.21
+=====================================================
+=====================================================
+Average map coverage:  12.392920880428317
+Std map coverage:  1.7953162686206197
+=====================================================
+=====================================================
