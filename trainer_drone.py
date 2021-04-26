@@ -25,7 +25,7 @@ class Trainer(object):
             lr = args.lrate, alpha=0.97, eps=1e-6)
         self.params = [p for p in self.policy_net.parameters()]
         self.num_inputs = 294
-        self.N_iteration = 50
+        self.N_iteration = 1000
 
         self.misc_arr = np.zeros((self.N_iteration, self.args.nagents))
         self.state_arr = np.zeros((self.N_iteration, self.args.nagents, (self.args.nagents+1)*5+2, self.env.out_shape, self.env.out_shape))
@@ -503,14 +503,14 @@ class Tester(Trainer):
 
     def test_batch(self, save=True):
         batch = []
-        N_epoch = 1
+        N_epoch = 10
             
         total_pos_list = []
         for epoch in range(N_epoch):
             pos_list, stat = self.get_episode(epoch)
             if save:
                 total_pos_list.append(pos_list)
-                with open('agents_positions.pkl', 'wb') as f:
+                with open('agents_positions_4.pkl', 'wb') as f:
                     pickle.dump(total_pos_list, f)
             else:
                 return stat

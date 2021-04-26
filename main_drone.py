@@ -325,7 +325,7 @@ if args.mode == "Train":
 else:
     print ("Test mode is executed! \n")
     time.sleep(1.0)
-    load("./model/model_train_1692.pt")
+    load("./model/model_test_3900.pt")
     tester.test_batch()
 
 if args.display:

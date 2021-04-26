@@ -172,7 +172,7 @@ class QuadrotorFormation(gym.Env):
                 self.battery_status[agent_ind] = 1.0
                 print ("The battery level of Agent {0} is {1:.3}. Negative reward!".format(agent_ind+1, self.battery_status[agent_ind]))
 
-            if np.sum(self.agent_status) == 0:
+            if np.sum(self.agent_status) < 1:
                 print ("No alive agent is left!")
                 done = True
 
@@ -212,7 +212,7 @@ class QuadrotorFormation(gym.Env):
                         if drone_distance < min_distance:
                             reward_list[agent_ind] = collision_reward
                             reward_list[agent_other_ind] = collision_reward
-                            done = True
+                            # done = True
                             self.agent_status[agent_ind] = 0 # this agent failed 
                             self.agent_status[agent_other_ind] = 0 # this agent failed 
                             self.quadrotors[agent_ind].state[2] = 0.0 # drone falls into (x, y, 0) position. 
