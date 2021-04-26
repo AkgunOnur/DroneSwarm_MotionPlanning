@@ -1,20 +1,17 @@
 import gym
 from gym import spaces, error, utils
 from gym.utils import seeding
-from gym.envs.classic_control import rendering
+# from gym.envs.classic_control import rendering
 import numpy as np
 import configparser
 from os import path
-import matplotlib.pyplot as plt
-from matplotlib.pyplot import gca
-from sklearn.neighbors import NearestNeighbors
 import itertools
 import random
 import pdb
 from quadrotor_dynamics import Quadrotor
 from numpy.random import uniform
-from trajectory import Trajectory
 from time import sleep
+from collections import deque
 
 
 
@@ -24,88 +21,50 @@ font = {'family': 'sans-serif',
 
 
 class QuadrotorFormation(gym.Env):
+    def __init__(self, n_agents=1, N_frame=5, visualization=True, is_centralized = True):
 
-    def __init__(self, n_agents=1, visualization=True):
-
-        config_file = path.join(path.dirname(__file__), "formation_flying.cfg")
-        config = configparser.ConfigParser()
-        config.read(config_file)
-        config = config['flock']
-
-        self.dynamic = True  # if the agents are moving or not
-        # normalize the adjacency matrix by the number of neighbors or not
-        self.mean_pooling = False
-        # self.degree =  4 # number of nearest neighbors (if 0, use communication range instead)
-        self.degree = 1
-        # number of features per agent
-        self.n_features = 12
-        # number states per agent
-        self.nx_system = self.n_features + 3
         # number of actions per agent which are desired positions and yaw angle
-        self.n_action = 3
-
-        self.visualization = visualization
-
-        # problem parameters from file
+        self.n_action = 6
+        self.observation_dim = 4
+        self.dim_actions = 1
         self.n_agents = n_agents
-        self.comm_radius = float(config['comm_radius'])
-        self.comm_radius2 = self.comm_radius * self.comm_radius
-        self.dt = float(config['system_dt'])
-        self.v_max = float(config['max_vel_init'])
-        self.v_bias = self.v_max
-        self.r_max = float(config['max_rad_init'])
-        self.std_dev = float(config['std_dev']) * self.dt
+        self.visualization = visualization
+        self.is_centralized = is_centralized
+        self.action_dict = {0:"Xp", 1:"Xn", 2:"Yp", 3:"Yn", 4:"Zp", 5:"Zn"}
 
         state0 = [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]
         self.quadrotors = []
         self.viewer = None
-
-        self.trajSelect = np.zeros(3)
-        # Select Position Trajectory Type (0: hover,                    1: pos_waypoint_timed,      2: pos_waypoint_interp,
-        #                                  3: minimum velocity          4: minimum accel,           5: minimum jerk,           6: minimum snap
-        #                                  7: minimum accel_stop        8: minimum jerk_stop        9: minimum snap_stop
-        #                                 10: minimum jerk_full_stop   11: minimum snap_full_stop
-        #                                 12: pos_waypoint_arrived
-        self.trajSelect[0] = 3
-        # Select Yaw Trajectory Type      (0: none                      1: yaw_waypoint_timed,      2: yaw_waypoint_interp     3: follow          4: zero)
-        self.trajSelect[1] = 2
-        # Select if waypoint time is used, or if average speed is used to calculate waypoint time   (0: waypoint time,   1: average speed)
-        self.trajSelect[2] = 1
-
-        self.v_average = 1.0
-        self.period_denum = 1.0
         self.dtau = 1e-3
+        self.agent_status = None
 
-        self.xd_dot, self.yd_dot, self.zd_dot = 0, 0, 0
-        self.xd_dotdot, self.yd_dotdot, self.zd_dotdot = 0, 0, 0
-
-        # intitialize state matrices
-        self.total_states = np.zeros((self.n_agents, self.nx_system))
-        self.agent_features = np.zeros((self.n_agents, self.n_action + 3*(self.n_agents - 1)))
-        self.diff_target = np.zeros((self.n_agents, self.n_action))
-
-        self.a_net = np.zeros((self.n_agents, self.n_agents))
-
-        self.max_action = 2.0
-        self.gain = 1.0  # TODO - adjust if necessary - may help the NN performance
-        self.action_space = spaces.Box(low=-self.max_action, high=self.max_action, shape=(
-            self.n_action,), dtype=np.float32)
-
-        self.observation_space = spaces.Box(low=-np.Inf, high=np.Inf, shape=(self.n_agents, self.n_features),
-                                            dtype=np.float32)
+        if self.is_centralized:
+            self.action_space = spaces.Discrete(self.n_action**self.n_agents)
+        else:
+            self.action_space = spaces.Discrete(self.n_action)
 
         # intitialize grid information
         self.x_lim = 20  # grid x limit
         self.y_lim = 20  # grid y limit
         self.z_lim = 6  # grid z limit
-        self.res = 1.0  # resolution for grids
+        self.grid_res = 1.0  # resolution for grids
         self.out_shape = 82  # width and height for uncertainty matrix
         self.dist = 5.0  # distance threshold
         self.N_closest_grid = 4
+        self.neighbour_grids = 8
 
-        X, Y, Z = np.mgrid[-self.x_lim : self.x_lim + 0.1 : self.res, 
-                           -self.y_lim : self.y_lim + 0.1 : self.res, 
-                           0:self.z_lim + 0.1 : 2*self.res]
+        # Battery definitions
+        self.battery_points = np.array([[-20, -20, 0, -18, -12, 4], [18, 12, 0, 20, 20, 4], 
+                                            [-20, 12, 0, -18, 20, 4], [18, -20, 0, 20, -12, 4]])
+
+        self.battery_positions = None
+        self.battery_status = None
+        self.battery_indices = None
+        self.battery_stack = None
+
+        X, Y, Z = np.mgrid[-self.x_lim : self.x_lim + 0.1 : self.grid_res, 
+                           -self.y_lim : self.y_lim + 0.1 : self.grid_res, 
+                           0:self.z_lim + 0.1 : 2*self.grid_res]
         self.uncertainty_grids = np.vstack(
             (X.flatten(), Y.flatten(), Z.flatten())).T
         self.uncertainty_values = None
@@ -116,175 +75,262 @@ class QuadrotorFormation(gym.Env):
         self.obstacle_indices = None
         self.obstacle_pos_xy = None
 
-        self.fig = None
-        self.line1 = None
+        self.N_frame = N_frame # Number of frames to be stacked
+        self.frame_update_iter = 2
+        self.iteration = None
+        self.agents_stacks = [deque([],maxlen=self.N_frame) for _ in range(self.n_agents)]
+        self.uncertainty_stacks = deque([],maxlen=self.N_frame)
+        self.obstacles_stack = None
+
+        self.action_list = []
+        for p in itertools.product([0,1,2,3,4,5], repeat=2):
+            self.action_list.append(p)
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def step(self, ref_pos):
-        #self.nu = 1
-        self.agent_targets = np.reshape(ref_pos, (self.n_agents, self.n_action))
-        self.fail_check = np.zeros(self.n_agents)
+    def step(self, action, iteration, is_centralized):
+        self.iteration = iteration
         max_distance = 5.0
         min_distance = 0.5
-        alpha = 0.1
+        uncertainty_constant = 0.0075
+        battery_cost = 0.01
+        battery_reward = 2.0
+        battery_critical_level = 0.25
         done = False
-        traj_list = []
-        drone_crash = False
         reward_list = np.zeros(self.n_agents)
+        uncertainty_limit = 0.25
+        collision_reward = -10.0
+        N_overvisit = 15.0
+        obstacle_collision = np.zeros(self.n_agents)
+        total_explored_indices = []
+        info = dict()
 
-        agent_pos_dict = {}
+        for i in range(self.n_agents):
+            total_explored_indices.append([])
+
+        if is_centralized:
+            agents_actions = self.action_list[action]
+        else:
+            agents_actions = np.reshape(action, (self.n_agents,))
         
         drone_current_pos = np.array([[self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2]] for i in range(self.n_agents)])    
         drone_init_pos = np.copy(drone_current_pos)    
-        drone_prev_pos = np.copy(drone_current_pos)
 
-        reached_target = np.zeros(self.n_agents)
+        # print ("\n")
 
-        N = int(np.sum(np.abs(np.max(self.agent_targets - drone_current_pos, axis=0))) * 10)
-        N = 50
+        #increase the map uncertainty
+        self.uncertainty_values[self.no_obstacle_indices] = np.clip(
+                    self.uncertainty_values[self.no_obstacle_indices] + uncertainty_constant, 1e-6, 1.0)
 
+        #print ("Agent status: ", self.agent_status)
 
-        for k in range(N):
-            u = (self.agent_targets - drone_current_pos)*100
-            drone_current_pos = drone_current_pos + (u + 0*np.random.uniform(-1,1)) * self.dtau 
+        for agent_ind in range(self.n_agents):
+            
+            if self.agent_status[agent_ind] == 0:
+                # print ("Agent {0} failed, it can't fly any longer!".format(agent_ind+1))
+                continue
 
-            reward_list[reached_target==0] -= 10 # Give moving agents negative reward
+            current_action = agents_actions[agent_ind]
+            drone_prev_state, drone_current_state = self.get_drone_des_grid(agent_ind, current_action)
+            current_pos = [drone_current_state[0],drone_current_state[1],drone_current_state[2]]
+            explored_indices = self.get_closest_n_grids(current_pos, self.neighbour_grids)
+            current_grid = self.get_closest_grid(current_pos)
 
-            if (k+1) % 5 == 0:
-                diff_pos = drone_current_pos - drone_prev_pos
-                drone_prev_pos = np.copy(drone_current_pos)
-                
-                for i in range(self.n_agents):
-                    current_pos = [drone_current_pos[i,0],drone_current_pos[i,1],drone_current_pos[i,2]]
-                    dist_to_target = drone_current_pos[i,:] - self.agent_targets[i,:]
+            self.battery_status[agent_ind] = np.clip(self.battery_status[agent_ind] - battery_cost, 0.0, 1.0)
 
-                    if reached_target[i]: # If this agent reaches the target, then pass the next one
-                        continue
+            # print ("Agent {0}".format(agent_ind+1))
+            # print ("Current action: {0} / {1}".format(agents_actions[agent_ind], self.action_dict[agents_actions[agent_ind]]))
+            # print ("Previous state: X:{0:.4}, Y:{1:.4}, Z:{2:.4}".format(drone_prev_state[0], drone_prev_state[1], drone_prev_state[2]))
+            # print ("Current state: X:{0:.4}, Y:{1:.4}, Z:{2:.4}".format(drone_current_state[0], drone_current_state[1], drone_current_state[2]))
+            
+            if self.check_collision(explored_indices[0:self.N_closest_grid]): # just check the nearest 4 grids to the drone, whether it collides with the obstacle
+                # print ("drone_prev_state: ", drone_prev_state)
+                # print ("drone_current_state: ", drone_current_state)
+                #print ("Agent {} has collided with the obstacle! It can no longer fly!".format(agent_ind+1))
+                self.agent_status[agent_ind] = 0 # this agent failed 
+                obstacle_collision[agent_ind] = 1
+                reward_list[agent_ind] = collision_reward
+                self.quadrotors[agent_ind].state = np.copy(drone_prev_state)
+                self.quadrotors[agent_ind].state[2] = 0.0 # drone falls into (x, y, 0) position. 
+                # done = True
+                continue
 
-                    differences = current_pos - self.uncertainty_grids
-                    distances = np.sum(differences * differences, axis=1)
-                    indices = distances < self.dist
-                    sorted_drone_indices = sorted(range(len(distances)), key=lambda k: distances[k])
+            if self.battery_status[agent_ind] <= 1e-2 and current_grid not in self.battery_indices: # if the battery status of an agent is less than %1, finish the episode
+                reward_list[agent_ind] = collision_reward
+                # done = True
+                self.agent_status[agent_ind] = 0 # this agent failed 
+                self.quadrotors[agent_ind].state[2] = 0.0 # drone falls into (x, y, 0) position. 
+                #print ("Agent {} is out of battery! It can no longer fly!".format(agent_ind+1))
+            elif current_grid in self.battery_indices and self.battery_status[agent_ind] <= battery_critical_level: #if the agent goes the battery station with low battery, get positive reward
+                reward_list[agent_ind] = battery_reward
+                self.battery_status[agent_ind] = 1.0
+                #print ("The battery level of Agent {0} is {1:.3}. Positive reward!".format(agent_ind+1, self.battery_status[agent_ind]))
+            elif current_grid in self.battery_indices and self.battery_status[agent_ind] > battery_critical_level: #if the agent goes the battery station with loaded battery, get negative reward
+                reward_list[agent_ind] = -battery_reward
+                self.battery_status[agent_ind] = 1.0
+                #print ("The battery level of Agent {0} is {1:.3}. Negative reward!".format(agent_ind+1, self.battery_status[agent_ind]))
 
-                    if self.check_collision(sorted_drone_indices[0:self.N_closest_grid // 2]): # just check the nearest 2 grids to the drone, whether it collides with the obstacle
-                        print ("Agent {} has collided with the obstacle!".format(i+1))
-                        reward_list[i] = -1e4
-                        done = True
-                        break
-
-                    reward_list[i] += 100.0 * np.sum(self.uncertainty_values[indices])
-                    # out_of_map = 100*(np.clip(current_pos[0]-self.x_lim, 0, 1e3) +
-                    #                   np.clip(current_pos[1]-self.y_lim, 0, 1e3) +
-                    #                   np.clip(current_pos[2]-self.z_lim, 0, 1e3))
-
-                    # reward -= out_of_map
-                    self.grid_visits[indices] += 1
-                    self.uncertainty_values[indices] = np.clip(
-                        np.exp(-self.grid_visits[indices]/3), -1.0, 1.0)
-                
-                    overexplored_indices = np.array(self.uncertainty_values < 0.1) & np.array(indices)
-                    if np.sum(overexplored_indices) > 0:
-                        neg_reward = np.sum(np.clip(np.exp(self.grid_visits[overexplored_indices] / 5), 0, 1e2))
-                        reward_list[i] -= neg_reward
-
-                    drone_distances = np.zeros(self.n_agents - 1)
-                    for j in range(self.n_agents):
-                        if i != j:
-                            state_difference = self.quadrotors[i].state - self.quadrotors[j].state
-                            drone_distance = np.sqrt(state_difference[0]**2 + state_difference[1]**2 + state_difference[2]**2)
-                            if drone_distance < min_distance:
-                                reward_list[i] = -1e4
-                                reward_list[j] = -1e4
-                                print ("Agent {} and {} has collided with each other!".format(i+1, j+1))
-                                done = True
-                            elif drone_distance <= max_distance:
-                                reward_list[i] -= 100
-
-                    
-                    if np.sum(np.abs(dist_to_target)) < 0.1:
-                        reached_target[i] = 1
-
-                if self.visualization:
-                    self.visualize()
+            if np.sum(self.agent_status) < 1:
+                #print ("No alive agent is left!")
+                done = True
 
 
-            if np.sum(reached_target) == self.n_agents or done: # If all agents reaches their targets or any of them fails to do it
-                break 
+            total_explored_indices[agent_ind] = explored_indices
+
+            reward_list[agent_ind] += np.sum(self.uncertainty_values[explored_indices]) # max value will be neighbour_grids(=8)
+
+
+        for agent_ind in range(self.n_agents):
+            if obstacle_collision[agent_ind] == 1 or self.agent_status[agent_ind] == 0:
+                continue
+            else:
+                indices = total_explored_indices[agent_ind]
+                # exclude the indices of obstacles from the list of visited indices
+                to_be_updated_indices = np.setdiff1d(indices, self.obstacle_indices) # obstacle indices are excluded
+                to_be_updated_indices = np.setdiff1d(to_be_updated_indices, self.battery_indices) # battery indices are excluded
+
+                self.grid_visits[to_be_updated_indices] += 1
+                self.uncertainty_values[to_be_updated_indices] = np.clip(
+                    np.exp(-self.grid_visits[to_be_updated_indices]/3), 1e-6, 1.0)
+
+                low_uncertainty_indices = np.where(self.uncertainty_values < uncertainty_limit)[0]
+            
+                # find the visited grids that have low uncertainty values
+                overexplored_indices =  np.intersect1d(low_uncertainty_indices, to_be_updated_indices)
+                if len(overexplored_indices) > 0:
+                    # neg_reward = np.sum(np.clip(np.exp(self.grid_visits[overexplored_indices] / 8), 0, 1))
+                    neg_reward = np.sum(np.clip(self.grid_visits[overexplored_indices] / N_overvisit, 0.0, 1.0))
+                    reward_list[agent_ind] -= neg_reward
+
+                drone_distances = np.zeros(self.n_agents - 1)
+                for agent_other_ind in range(self.n_agents):
+                    if agent_ind != agent_other_ind:
+                        state_difference = self.quadrotors[agent_ind].state - self.quadrotors[agent_other_ind].state
+                        drone_distance = np.sqrt(state_difference[0]**2 + state_difference[1]**2 + state_difference[2]**2)
+                        if drone_distance < min_distance:
+                            reward_list[agent_ind] = collision_reward
+                            reward_list[agent_other_ind] = collision_reward
+                            # done = True
+                            self.agent_status[agent_ind] = 0 # this agent failed 
+                            self.agent_status[agent_other_ind] = 0 # this agent failed 
+                            self.quadrotors[agent_ind].state[2] = 0.0 # drone falls into (x, y, 0) position. 
+                            self.quadrotors[agent_other_ind].state[2] = 0.0 # drone falls into (x, y, 0) position. 
+                            #print ("Agent {} and {} has collided with each other! They can no longer fly!".format(agent_ind+1, agent_other_ind+1))
+                        elif drone_distance <= max_distance:
+                            reward_list[agent_ind] += (collision_reward/2) 
+                            reward_list[agent_other_ind] += (collision_reward/2) 
+                        
+                        
+
+            if self.visualization:
+                self.visualize()
+
         
 
+            if self.iteration % self.frame_update_iter == 0:
+                drone_stack = self.get_drone_stack(agent_ind)
+                self.agents_stacks[agent_ind].append(drone_stack)
+
+
+            # print ("Agent {0}".format(agent_ind+1))
+            # print ("Current reward: {0:.4}".format(reward_list[agent_ind]))
+
+        # sleep(0.25)
+
+        
+
+        
+        # if self.is_centralized:
+        #     return self.get_observation(), reward_list.sum(), done, {}
+        # else:
+        #     return self.get_observation(), reward_list, done, {}
+
+        info['alive_mask'] = np.copy(self.agent_status)
+
+        return self.get_observation(), reward_list, done, info
+
+        
+
+    def get_observation(self):
+        # conv_stack(batch,17,84,84) = 5*agent1_pos + 5*agent2_pos + 5*uncertainty_grid + 1*obstacle_grid  + 1*battery_stack
+
+        uncertainty_map = np.reshape(self.uncertainty_values,(self.out_shape, self.out_shape))
+        if self.iteration % self.frame_update_iter == 0:
+            self.uncertainty_stacks.append(uncertainty_map)
+
+        
+        conv_stack = np.zeros((self.N_frame*(self.n_agents+1)+2, self.out_shape, self.out_shape))
+        obs_stack = np.zeros((self.n_agents, self.N_frame*(self.n_agents+1)+2, self.out_shape, self.out_shape))
+        for agent_ind in range(self.n_agents):
+            for frame_ind in range(self.N_frame):
+                # agent_ind = 0, 0 1 2 3 4
+                # agent_ind = 1, 5 6 7 8 9
+                conv_stack[self.N_frame*agent_ind+frame_ind,:,:] = np.copy(self.agents_stacks[agent_ind][frame_ind])
+
+        # uncertainty_stack 10 11 12 13 14
+        for frame_ind in range(self.N_frame):
+            conv_stack[self.N_frame*(self.n_agents)+frame_ind,:,:] = np.copy(self.uncertainty_stacks[frame_ind])
+
+        conv_stack[-2,:,:] = np.copy(self.obstacles_stack)
+        conv_stack[-1,:,:] = np.copy(self.battery_stack)
+
         for i in range(self.n_agents):
-            self.quadrotors[i].state[0:3] = [drone_current_pos[i,0], drone_current_pos[i,1], drone_current_pos[i,2]]
-            print("Initial X:{0:.3}, Y:{1:.3}, Z:{2:.3} of Agent {3}".format(
-                drone_init_pos[i,0], drone_init_pos[i,1], drone_init_pos[i,2], i+1))
-            print("Target X:{0:.3}, Y:{1:.3}, Z:{2:.3}".format(
-                self.agent_targets[i,0], self.agent_targets[i,1], self.agent_targets[i,2]))
-            print("Final X:{0:.3}, Y:{1:.3}, Z:{2:.3}, Reward:{3:.5} \n".format(
-                self.quadrotors[i].state[0], self.quadrotors[i].state[1], self.quadrotors[i].state[2], reward_list[i]))
-            
-        return self._get_obs(), reward_list, done, {}
+            obs_stack[i,:,:,:] = np.copy(conv_stack)
 
-    def _get_obs(self):
-        conv_stack = np.zeros((self.out_shape, self.out_shape, self.n_agents + 2)) # it will be in dimension 82x82x4 
-        # In the first 2 stacks, there will be position of agents (closest 4 grids to the agent will be 1, others will be 0)
-        # In the third stack, there will be uncertainty matrix, whose elements are between 0 and 1
-        # In the fourth stack, there will be positions of obstacles (positions of obstacles are 1)
+        return obs_stack, self.battery_status
 
-        for i in range(self.n_agents):
-            self.agent_features[i,0] = self.quadrotors[i].state[0] / self.x_lim
-            self.agent_features[i,1] = self.quadrotors[i].state[1] / self.y_lim
-            self.agent_features[i,2] = self.quadrotors[i].state[2] / self.z_lim
-
-            cnt = 3
-            for j in range(self.n_agents):
-                if i != j:                    
-                    self.agent_features[i,cnt] = (self.quadrotors[i].state[0] - self.quadrotors[j].state[0]) / self.x_lim
-                    self.agent_features[i,cnt+1] = (self.quadrotors[i].state[1] - self.quadrotors[j].state[1]) / self.y_lim
-                    self.agent_features[i,cnt+2] = (self.quadrotors[i].state[2] - self.quadrotors[j].state[2]) / self.z_lim
-
-                    cnt += 3
-
-            drone_closest_grids = self.get_closest_n_grids(self.quadrotors[i].state[0:3], self.N_closest_grid)
-            drone_stack = np.zeros(self.uncertainty_grids.shape[0])
-            drone_stack[drone_closest_grids] = 1
-            drone_stack = np.reshape(drone_stack, (self.out_shape, self.out_shape))
-
-            conv_stack[:,:,i] = np.copy(drone_stack)
-
-        uncertainty_stack = np.reshape(self.uncertainty_values,(self.out_shape, self.out_shape))
-        conv_stack[:,:,self.n_agents] = np.copy(uncertainty_stack)
-
-        obstacles_stack = np.zeros(self.uncertainty_grids.shape[0])
-        obstacles_stack[self.obstacle_indices] = 1
-        obstacles_stack = np.reshape(obstacles_stack,(self.out_shape, self.out_shape))
-        conv_stack[:,:,self.n_agents+1] = np.copy(obstacles_stack)
-
-        conv_stack = np.reshape(conv_stack, (1, self.n_agents+2, self.out_shape, self.out_shape))
-
-        return self.agent_features, conv_stack
 
     def reset(self):
-        x = np.zeros((self.n_agents, 2 * self.n_action))
-        self.agent_features = np.zeros((self.n_agents, self.n_action + 3*(self.n_agents - 1)))
         self.quadrotors = []
         self.uncertainty_values = uniform(low=0.99, high=1.0, size=(self.uncertainty_grids.shape[0],))
         self.grid_visits = np.zeros((self.uncertainty_grids.shape[0], ))
-        pos_start = np.zeros((self.n_agents, 3))
+        self.agents_stacks = [deque([],maxlen=self.N_frame) for _ in range(self.n_agents)]
+        self.uncertainty_stacks = deque([],maxlen=self.N_frame)
+        self.agent_status = np.ones(self.n_agents)
         
-        self.viewer = None
-        
+        self.iteration = 1
+        info = dict()
+        info['alive_mask'] = np.copy(self.agent_status)
 
         #There will be two obstacles around (x1,x2,y1,y2)=(-9,-7,5,16) and (x1,x2,y1,y2)=(7,9,-10,10) with -+ 3m deviation in x and y 
-        x_rnd = np.random.uniform(-3,3)
-        y_rnd = np.random.uniform(-3,3)
-        self.obstacle_start = np.array([[-9+x_rnd,5+y_rnd,0],[7+x_rnd, -10+y_rnd,0]]) 
-        self.obstacle_end = np.array([[-7+x_rnd,16+y_rnd,6],[9+x_rnd,10+y_rnd,6]])
+        x_rnd = 0 #np.random.uniform(-3,3)
+        y_rnd = 0 #np.random.uniform(-3,3)
+        # self.obstacle_start = np.array([[-9+x_rnd,5+y_rnd,0],[7+x_rnd, -10+y_rnd,0]]) 
+        # self.obstacle_end = np.array([[-7+x_rnd,16+y_rnd,6],[9+x_rnd,10+y_rnd,6]])
+        self.obstacle_start = np.array([[7+x_rnd, 5+y_rnd,0]]) 
+        self.obstacle_end = np.array([[9+x_rnd,20+y_rnd,6]])
 
         self.obstacle_indices, self.obstacle_pos_xy = self.get_obstacle_indices()
+        
+
+        lst = []
+        for location in self.battery_points:
+            xyz = np.mgrid[location[0]:location[3]+0.1:self.grid_res,
+                            location[1]:location[4]+0.1:self.grid_res,
+                            location[2]:location[5]+0.1:2*self.grid_res].reshape(3,-1).T
+            lst.append(xyz)
+            
+        self.battery_positions = np.vstack((lst[0],lst[1], lst[2], lst[3]))
+        array_of_tuples = map(tuple, self.battery_positions)
+        self.battery_positions = tuple(array_of_tuples)
+        self.battery_status = np.random.uniform(low=0.95, high=1.0,size=self.n_agents)
+
+        self.battery_indices = self.get_battery_indices()
 
         self.uncertainty_values[self.obstacle_indices] = -1.0 # make uncertainty values of obstacle positions -1 so that agents should not get close to them
+        self.uncertainty_values[self.battery_indices] = 0.0 # make uncertainty values of battery positions -0 so that agents should not get reward by going there
+
+        self.obstacles_stack = np.zeros(self.uncertainty_grids.shape[0])
+        self.obstacles_stack[self.obstacle_indices] = 1
+        self.obstacles_stack = np.reshape(self.obstacles_stack,(self.out_shape, self.out_shape))
+        self.battery_stack = np.zeros(self.uncertainty_grids.shape[0])
+        self.battery_stack[self.battery_indices] = 1
+        self.battery_stack = np.reshape(self.battery_stack,(self.out_shape, self.out_shape))
+
+        total_indices = np.arange(self.uncertainty_grids.shape[0])
+        self.no_obstacle_indices = np.setdiff1d(total_indices, self.obstacle_indices)
 
 
         # Debugging to check collision
@@ -315,17 +361,38 @@ class QuadrotorFormation(gym.Env):
         # stop        
         
 
-        for i in range(0, self.n_agents):
-            x_start = uniform(low=-self.x_lim, high=self.x_lim)
-            y_start = uniform(low=-self.y_lim, high=self.y_lim)
-            z_start = uniform(low=0.0, high=self.z_lim)
-            pos_start[i,:] = [x_start, y_start, z_start]
+        uncertainty_map = np.reshape(self.uncertainty_values,(self.out_shape, self.out_shape))
+        for j in range(self.N_frame):
+            self.uncertainty_stacks.append(uncertainty_map)
 
-            state0 = [x_start, y_start, z_start,
+        for agent_ind in range(0, self.n_agents):
+            total_indices = np.arange(self.uncertainty_grids.shape[0])
+            safe_indices = np.setdiff1d(total_indices, self.obstacle_indices)
+            closest_grid = np.random.choice(safe_indices)
+            current_pos = self.uncertainty_grids[closest_grid]
+
+            state0 = [current_pos[0], current_pos[1], current_pos[2],
                       0., 0., 0., 0., 0., 0., 0., 0., 0.]
             self.quadrotors.append(Quadrotor(state0))
+            drone_stack = self.get_drone_stack(agent_ind)
 
-        return self._get_obs(), pos_start
+            for j in range(self.N_frame):
+                self.agents_stacks[agent_ind].append(drone_stack)                
+
+
+        return self.get_observation(), info 
+
+
+    def get_drone_stack(self, agent_ind):
+        drone_closest_grids = self.get_closest_n_grids(self.quadrotors[agent_ind].state[0:3], self.neighbour_grids)
+        # print ("drone state: ", self.quadrotors[agent_ind].state[0:3])
+        # print ("closest grids: ", self.uncertainty_grids[drone_closest_grids])
+        
+        drone_stack = np.zeros(self.uncertainty_grids.shape[0])
+        drone_stack[drone_closest_grids] = 1
+        drone_stack = np.reshape(drone_stack, (self.out_shape, self.out_shape))
+
+        return drone_stack
 
     def check_collision(self, sorted_drone_indices):
         s = set(self.obstacle_indices)
@@ -336,6 +403,35 @@ class QuadrotorFormation(gym.Env):
                 return True
 
         return False
+
+
+    def get_drone_des_grid(self, drone_index, discrete_action):
+        drone_prev_state = np.copy(self.quadrotors[drone_index].state)
+
+        if discrete_action == 0: #action=0, x += 1.0
+            self.quadrotors[drone_index].state[0] += self.grid_res
+            self.quadrotors[drone_index].state[0] = np.clip(self.quadrotors[drone_index].state[0], -self.x_lim,  self.x_lim)
+        elif discrete_action == 1: #action=1, x -= 1.0
+            self.quadrotors[drone_index].state[0] -= self.grid_res
+            self.quadrotors[drone_index].state[0] = np.clip(self.quadrotors[drone_index].state[0], -self.x_lim,  self.x_lim)
+        elif discrete_action == 2: #action=2, y += 1.0
+            self.quadrotors[drone_index].state[1] += self.grid_res
+            self.quadrotors[drone_index].state[1] = np.clip(self.quadrotors[drone_index].state[1], -self.y_lim,  self.y_lim)
+        elif discrete_action == 3: #action=3, y -= 1.0
+            self.quadrotors[drone_index].state[1] -= self.grid_res
+            self.quadrotors[drone_index].state[1] = np.clip(self.quadrotors[drone_index].state[1], -self.y_lim,  self.y_lim)
+        elif discrete_action == 4: #action=4, z += 2.0
+            self.quadrotors[drone_index].state[2] += self.grid_res*2
+            self.quadrotors[drone_index].state[2] = np.clip(self.quadrotors[drone_index].state[2], 0.0,  self.z_lim)
+        elif discrete_action == 5: #action=5, z += 2.0
+            self.quadrotors[drone_index].state[2] -= self.grid_res*2
+            self.quadrotors[drone_index].state[2] = np.clip(self.quadrotors[drone_index].state[2], 0.0,  self.z_lim)
+        else:
+            print ("Invalid discrete action!")
+
+        drone_current_state = np.copy(self.quadrotors[drone_index].state)
+        return drone_prev_state, drone_current_state
+
 
 
     def get_closest_n_grids(self, current_pos, n):
@@ -359,9 +455,9 @@ class QuadrotorFormation(gym.Env):
         obstacle_indices_unsquezed = []
 
         for i in range(self.obstacle_start.shape[0]):
-            x_range = np.arange(-self.res/2+self.obstacle_start[i,0], self.obstacle_end[i,0]+self.res/2, self.res/4)
-            y_range = np.arange(-self.res/2+self.obstacle_start[i,1], self.obstacle_end[i,1]+self.res/2, self.res/4)
-            z_range = np.arange(-self.res/2+self.obstacle_start[i,2], self.obstacle_end[i,2]+self.res/2, self.res/2)
+            x_range = np.arange(-self.grid_res/2+self.obstacle_start[i,0], self.obstacle_end[i,0]+self.grid_res/2, self.grid_res/4)
+            y_range = np.arange(-self.grid_res/2+self.obstacle_start[i,1], self.obstacle_end[i,1]+self.grid_res/2, self.grid_res/4)
+            z_range = np.arange(-self.grid_res/2+self.obstacle_start[i,2], self.obstacle_end[i,2]+self.grid_res/2, self.grid_res/2)
 
             indices = []
             for x in x_range:
@@ -387,8 +483,20 @@ class QuadrotorFormation(gym.Env):
         
         return obstacle_indices_unsquezed, obstacle_pos
 
+    def get_battery_indices(self):
+        battery_indices = []
+
+        for pos in self.battery_positions:
+            current_pos = np.array([pos[0], pos[1], pos[2]])
+            current_ind = self.get_closest_grid(current_pos)
+            battery_indices.append(current_ind)
+
+        return battery_indices
+
 
     def visualize(self, agent_pos_dict=None, mode='human'):
+        charge_station = []
+        station_transform = []
         if self.viewer is None:
             self.viewer = rendering.Viewer(500, 500)
             self.viewer.set_bounds(-self.x_lim,
@@ -406,6 +514,21 @@ class QuadrotorFormation(gym.Env):
                 obstacle.add_attr(obstacle_transform)
                 obstacle.set_color(.8, .3, .3)
                 self.viewer.add_geom(obstacle)
+
+            # obstacle_pos_xy = [x_min, y_min, z_min, x_max, y_max, z_max]
+            # l,r,t,b = -cartwidth/2, cartwidth/2, cartheight/2, -cartheight/2
+            # axleoffset =cartheight/4.0
+            # cart = rendering.FilledPolygon([(l,b), (l,t), (r,t), (r,b)])
+            for j in range(self.battery_points.shape[0]):
+                charge_station.append(rendering.make_polygon([(self.battery_points[j][0],self.battery_points[j][1]), 
+                                                (self.battery_points[j][0],self.battery_points[j][4]), 
+                                                (self.battery_points[j][3],self.battery_points[j][4]), 
+                                                (self.battery_points[j][3],self.battery_points[j][1])]))
+
+                station_transform.append(rendering.Transform())
+                charge_station[j].add_attr(station_transform[j])
+                charge_station[j].set_color(.1, .5, .8)
+                self.viewer.add_geom(charge_station[j])
 
             self.drone_transforms = []
             self.drones = []

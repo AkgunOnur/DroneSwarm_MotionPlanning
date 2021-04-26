@@ -6,11 +6,6 @@ from scipy import integrate
 from numpy import isnan, pi, isinf
 from numpy.random import normal
 import os
-import torch
-import torch.optim as optim
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.optim import lr_scheduler
 import math
 from scipy.spatial.transform import Rotation as R
 
