@@ -25,7 +25,7 @@ class Trainer(object):
             lr = args.lrate, alpha=0.97, eps=1e-6)
         self.params = [p for p in self.policy_net.parameters()]
         self.num_inputs = 294
-        self.N_iteration = 500
+        self.N_iteration = 50
 
         self.misc_arr = np.zeros((self.N_iteration, self.args.nagents))
         self.state_arr = np.zeros((self.N_iteration, self.args.nagents, (self.args.nagents+1)*5+2, self.env.out_shape, self.env.out_shape))
@@ -393,6 +393,8 @@ class Tester(Trainer):
 
         final_step = self.N_iteration
 
+        pos_list = np.zeros((3, self.N_iteration, self.env.n_agents))
+
         # if should_display:
         #     self.env.display()
         
@@ -409,6 +411,11 @@ class Tester(Trainer):
             battery_status = torch.DoubleTensor(battery_status)
             battery_status = battery_status.view(self.args.nagents, -1)
             # state = state.view(-1, self.args.nagents, state.size(-3), state.size(-2), state.size(-1))
+
+            for j in range(self.env.n_agents):
+                # print ("state {0}: X:{1:.3}, Y:{2:.3}, Z:{3:.3}".format(i+1, self.env.quadrotors[i].state[0], 
+                #                                                 self.env.quadrotors[i].state[1],self.env.quadrotors[i].state[2] ))
+                pos_list[:, t, j] = self.env.quadrotors[j].state[0:3]
 
             # recurrence over time
             if self.args.recurrent:
@@ -492,7 +499,7 @@ class Tester(Trainer):
 
         batch = self.state_arr[0:final_step], self.action_arr[0:final_step], self.action_out_arr[0:final_step], self.value_arr[0:final_step], self.episode_mask_arr[0:final_step], self.episode_mini_mask_arr[0:final_step], self.next_state_arr[0:final_step], self.reward_arr[0:final_step], self.misc_arr[0:final_step]
         
-        return batch, stat
+        return pos_list, stat
 
     def test_batch(self, save=True):
         batch = []
@@ -500,13 +507,13 @@ class Tester(Trainer):
             
         total_pos_list = []
         for epoch in range(N_epoch):
-            episode, stat = self.get_episode(epoch)
-            # if save:
-            #     total_pos_list.append(pos_list)
-            #     with open('agents_positions.pkl', 'wb') as f:
-            #         pickle.dump(total_pos_list, f)
-            # else:
-            #     return stat
+            pos_list, stat = self.get_episode(epoch)
+            if save:
+                total_pos_list.append(pos_list)
+                with open('agents_positions.pkl', 'wb') as f:
+                    pickle.dump(total_pos_list, f)
+            else:
+                return stat
 
         return stat
 

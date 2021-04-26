@@ -77,7 +77,7 @@ parser.add_argument('--random', action='store_true', default=False,
                     help="enable random model")
 
 # CommNet specific args
-parser.add_argument('--mode',  default="Train",
+parser.add_argument('--mode',  default="Test",
                     help="Train or Test mode")
 parser.add_argument('--commnet', action='store_true', default=False,
                     help="enable commnet model")
@@ -319,9 +319,13 @@ if args.load != '':
     load(args.load)
 
 if args.mode == "Train":
+    print ("Train mode is executed! \n")
+    time.sleep(1.0)
     train_run(args.num_epochs)
 else:
-    # load("./model/model_train_3492.pt")
+    print ("Test mode is executed! \n")
+    time.sleep(1.0)
+    load("./model/model_train_1692.pt")
     tester.test_batch()
 
 if args.display:

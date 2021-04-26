@@ -422,10 +422,10 @@ class QuadrotorFormation(gym.Env):
             self.quadrotors[drone_index].state[1] = np.clip(self.quadrotors[drone_index].state[1], -self.y_lim,  self.y_lim)
         elif discrete_action == 4: #action=4, z += 2.0
             self.quadrotors[drone_index].state[2] += self.grid_res*2
-            self.quadrotors[drone_index].state[2] = np.clip(self.quadrotors[drone_index].state[2], 0.5,  self.z_lim)
+            self.quadrotors[drone_index].state[2] = np.clip(self.quadrotors[drone_index].state[2], 0.0,  self.z_lim)
         elif discrete_action == 5: #action=5, z += 2.0
             self.quadrotors[drone_index].state[2] -= self.grid_res*2
-            self.quadrotors[drone_index].state[2] = np.clip(self.quadrotors[drone_index].state[2], 0.5,  self.z_lim)
+            self.quadrotors[drone_index].state[2] = np.clip(self.quadrotors[drone_index].state[2], 0.0,  self.z_lim)
         else:
             print ("Invalid discrete action!")
 
