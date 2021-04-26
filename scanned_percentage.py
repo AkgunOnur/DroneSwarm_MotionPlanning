@@ -23,9 +23,6 @@ uncertainty_grids = np.vstack((X.flatten(), Y.flatten(), Z.flatten())).T
 grid_visits = np.zeros((uncertainty_grids.shape[0], ))
 uncertainty_values = np.random.uniform(low=0.95, high=1.0, size=(uncertainty_grids.shape[0],))
 
-with open('agents_positions.pkl', 'rb') as f:
-    total_pos_list = pickle.load(f)
-
 #######################################
 
 # prepare some coordinates
@@ -46,7 +43,6 @@ def get_closest_n_grids(current_pos, n):
 
 
 episode = 0
-episode_pos_list = total_pos_list  # [episode]
 n_agents = 2
 
 
@@ -100,22 +96,51 @@ def update_combined(R):
 
 
 def get_map_coverage():
-    for episode_pos in total_pos_list:
-        print ("episode_pos: ", episode_pos.shape)
-        N_iteration = episode_pos.shape[1]
-        for i in range(N_iteration):
-            # print(i)
-            for agent_ind in range(episode_pos.shape[2]):
-                agent_pos = episode_pos[:, i, agent_ind]
+    average_val_list = []
+
+    with open('agents_positions_4.pkl', 'rb') as f:
+        total_pos_list = pickle.load(f)
+
+    for episode in range(len(total_pos_list)):
+        grid_visits = np.zeros((uncertainty_grids.shape[0], ))
+        episode_pos_list = total_pos_list[episode]
+        for iteration in range(episode_pos_list.shape[1]):
+            for agent_ind in range(episode_pos_list.shape[2]):
+                agent_pos = episode_pos_list[:, iteration, agent_ind]
                 indices = get_closest_n_grids(agent_pos, 8)
                 grid_visits[indices] = 1
-                # print ("Episode {4}, Agent {0} X:{1:.4}, Y:{2:.4}, Z:{3:.4}".format(agent_ind+1, agent_pos[0], agent_pos[1], agent_pos[2], episode+1))
-                # for a in range(uncertainty_grids[indices].shape[0]):
-                #     voxels[:, :, int(uncertainty_grids[indices][a, 2] - 1)][int(
-                #         uncertainty_grids[indices][a, 0]) + 20, int(uncertainty_grids[indices][a, 1]) + 20] = True
 
-    visited_grids = len(np.where(grid_visits == 1)[0])
-    print("Map coverage: ", 100 * visited_grids / len(grid_visits))
+
+        visited_grids = len(np.where(grid_visits == 1)[0])
+        average_val = 100 * visited_grids / len(grid_visits)
+        average_val_list.append(average_val)
+        print("Episode: {0} Map coverage: {1:.4}".format(episode+1, average_val))
+
+    print("Average map coverage: ", np.mean(average_val_list))
+    print("Std map coverage: ", np.std(average_val_list))
+
+
+    # for episode in range(len(total_pos_list)):
+    #     episode_pos_list = total_pos_list[episode]
+    #     for episode_pos in episode_pos_list:
+    #         print ("episode_pos: ", episode_pos.shape)
+    #         N_iteration = episode_pos.shape[1]
+    #         for i in range(N_iteration):
+    #             # print(i)
+    #             for agent_ind in range(episode_pos.shape[2]):
+    #                 agent_pos = episode_pos[:, i, agent_ind]
+    #                 indices = get_closest_n_grids(agent_pos, 8)
+    #                 grid_visits[indices] = 1
+    #                 # print ("Episode {4}, Agent {0} X:{1:.4}, Y:{2:.4}, Z:{3:.4}".format(agent_ind+1, agent_pos[0], agent_pos[1], agent_pos[2], episode+1))
+    #                 # for a in range(uncertainty_grids[indices].shape[0]):
+    #                 #     voxels[:, :, int(uncertainty_grids[indices][a, 2] - 1)][int(
+    #                 #         uncertainty_grids[indices][a, 0]) + 20, int(uncertainty_grids[indices][a, 1]) + 20] = True
+
+        
+
+    
+    
+    
 
 
 
