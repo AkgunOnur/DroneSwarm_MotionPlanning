@@ -164,11 +164,11 @@ class QuadrotorFormation(gym.Env):
                 self.quadrotors[agent_ind].state[2] = 0.0 # drone falls into (x, y, 0) position. 
                 #print ("Agent {} is out of battery! It can no longer fly!".format(agent_ind+1))
             elif current_grid in self.battery_indices and self.battery_status[agent_ind] <= battery_critical_level: #if the agent goes the battery station with low battery, get positive reward
-                reward_list[agent_ind] = battery_reward
+                #reward_list[agent_ind] = battery_reward
                 self.battery_status[agent_ind] = 1.0
                 #print ("The battery level of Agent {0} is {1:.3}. Positive reward!".format(agent_ind+1, self.battery_status[agent_ind]))
             elif current_grid in self.battery_indices and self.battery_status[agent_ind] > battery_critical_level: #if the agent goes the battery station with loaded battery, get negative reward
-                reward_list[agent_ind] = -battery_reward
+                #reward_list[agent_ind] = -battery_reward
                 self.battery_status[agent_ind] = 1.0
                 #print ("The battery level of Agent {0} is {1:.3}. Negative reward!".format(agent_ind+1, self.battery_status[agent_ind]))
 
@@ -202,7 +202,7 @@ class QuadrotorFormation(gym.Env):
                 if len(overexplored_indices) > 0:
                     # neg_reward = np.sum(np.clip(np.exp(self.grid_visits[overexplored_indices] / 8), 0, 1))
                     neg_reward = np.sum(np.clip(self.grid_visits[overexplored_indices] / N_overvisit, 0.0, 1.0))
-                    reward_list[agent_ind] -= neg_reward
+                    #reward_list[agent_ind] -= neg_reward
 
                 drone_distances = np.zeros(self.n_agents - 1)
                 for agent_other_ind in range(self.n_agents):
@@ -218,9 +218,9 @@ class QuadrotorFormation(gym.Env):
                             self.quadrotors[agent_ind].state[2] = 0.0 # drone falls into (x, y, 0) position. 
                             self.quadrotors[agent_other_ind].state[2] = 0.0 # drone falls into (x, y, 0) position. 
                             #print ("Agent {} and {} has collided with each other! They can no longer fly!".format(agent_ind+1, agent_other_ind+1))
-                        elif drone_distance <= max_distance:
-                            reward_list[agent_ind] += (collision_reward/2) 
-                            reward_list[agent_other_ind] += (collision_reward/2) 
+                        # elif drone_distance <= max_distance:
+                        #     reward_list[agent_ind] += (collision_reward/2) 
+                        #     reward_list[agent_other_ind] += (collision_reward/2) 
                         
                         
 

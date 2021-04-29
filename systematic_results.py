@@ -4,6 +4,8 @@ import os
 import glob
 import csv
 import pandas as pd
+import gc
+gc.enable()
 ##########################################
 
 
@@ -63,6 +65,7 @@ class Reporter:
 
         self.write_stats(
             [str(pkl), np.mean(average_val_list), np.std(average_val_list)])
+        gc.collect()
 
     def write_stats(self, stats):
         df_stats = pd.DataFrame([stats], columns=self.stats_columns)

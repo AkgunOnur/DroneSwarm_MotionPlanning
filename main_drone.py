@@ -4,6 +4,9 @@ import signal
 import argparse
 import os
 import glob
+import gc
+gc.enable()
+
 
 import numpy as np
 import torch
@@ -26,9 +29,9 @@ torch.set_default_tensor_type('torch.DoubleTensor')
 parser = argparse.ArgumentParser(description='PyTorch RL trainer')
 # training
 # note: number of steps per epoch = epoch_size X batch_size x nprocesses
-parser.add_argument('--num_epochs', default=30000, type=int,
+parser.add_argument('--num_epochs', default=50000, type=int,
                     help='number of training epochs')
-parser.add_argument('--batch_size', type=int, default=80,
+parser.add_argument('--batch_size', type=int, default=128,
                     help='number of steps before each update (per thread)')
 parser.add_argument('--nprocesses', type=int, default=1,
                     help='How many processes to run')
@@ -80,7 +83,7 @@ parser.add_argument('--random', action='store_true', default=False,
                     help="enable random model")
 
 # CommNet specific args
-parser.add_argument('--mode',  default="Test",
+parser.add_argument('--mode',  default="Train",
                     help="Train or Test mode")
 parser.add_argument('--commnet', action='store_true', default=False,
                     help="enable commnet model")
@@ -341,15 +344,22 @@ else:
     print("Test mode is executed! \n")
     time.sleep(1.0)
     model_path = './model'
+    model_names = []
     for selected_model in glob.glob(os.path.join(model_path, '*.pt')):
+        model_names.append(str(selected_model))
+    gc.collect()
+
+    for selected_model in model_names:
         print("Selected model is ", selected_model)
         load(selected_model)  # "./model/model_test_3900.pt"
+        print("Model loaded")
         pkl_name = os.path.split(os.path.splitext(selected_model)[0])[
             1] + '.pkl'
         tester.test_batch(pkl_name)
         time.sleep(1.0)
+        gc.collect()
         reporter.get_map_coverage(pkl_name)
-
+        gc.collect()
 
 if args.display:
     env.end_display()

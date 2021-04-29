@@ -7,6 +7,8 @@ import torch.nn as nn
 from utils import *
 from action_utils import *
 import pickle
+import gc
+gc.enable()
 
 Transition = namedtuple('Transition', ('state', 'action', 'action_out', 'value', 'episode_mask', 'episode_mini_mask', 'next_state',
                                        'reward', 'misc'))
@@ -532,6 +534,7 @@ class Tester(Trainer):
                 return stat
 
         return stat
+        gc.collect()
 
     def state_dict(self):
         return self.optimizer.state_dict()
