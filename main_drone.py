@@ -11,7 +11,7 @@ from models_drone import *
 from comm_drone import CommNetMLP
 from utils import *
 from action_utils import parse_action_args
-from trainer_drone import Trainer, Tester
+from trainer_drone import Trainer, Tester, Planner
 from multi_processing import MultiProcessTrainer
 from point_mass_formation import QuadrotorFormation
 
@@ -25,7 +25,7 @@ parser = argparse.ArgumentParser(description='PyTorch RL trainer')
 # note: number of steps per epoch = epoch_size X batch_size x nprocesses
 parser.add_argument('--num_epochs', default=30000, type=int,
                     help='number of training epochs')
-parser.add_argument('--batch_size', type=int, default=80,
+parser.add_argument('--batch_size', type=int, default=128,
                     help='number of steps before each update (per thread)')
 parser.add_argument('--nprocesses', type=int, default=1,
                     help='How many processes to run')
@@ -63,7 +63,7 @@ parser.add_argument('--plot', action='store_true', default=False,
                     help='plot training progress')
 parser.add_argument('--plot_env', default='main', type=str,
                     help='plot env name')
-parser.add_argument('--save', default='/home/deepdrone/DroneSwarm_MP_IC3/model/', type=str,
+parser.add_argument('--save', default='/okyanus/users/deepdrone/motion_planning/DroneSwarm_MP_IC3/model/', type=str,
                     help='save the model after training')
 parser.add_argument('--save_every', default=2, type=int,
                     help='save the model after every n_th epoch')
@@ -77,7 +77,7 @@ parser.add_argument('--random', action='store_true', default=False,
                     help="enable random model")
 
 # CommNet specific args
-parser.add_argument('--mode',  default="Test",
+parser.add_argument('--mode',  default="Train",
                     help="Train or Test mode")
 parser.add_argument('--commnet', action='store_true', default=False,
                     help="enable commnet model")
@@ -105,7 +105,7 @@ parser.add_argument('--hard_attn', default=False, action='store_true',
 parser.add_argument('--comm_action_one', default=False, action='store_true',
                     help='Whether to always talk, sanity check for hard attention.')
 parser.add_argument('--advantages_per_action', default=False, action='store_true',
-                    help='Whether to multipy log porb for each chosen action with advantages')
+                    help='Whether to multipy log prob for each chosen action with advantages')
 parser.add_argument('--share_weights', default=False, action='store_true',
                     help='Share weights for hops')
 
@@ -129,7 +129,12 @@ args.nagents = n_agents
 N_frame = 5
 visualization = False
 is_centralized = False
-env = QuadrotorFormation(n_agents=n_agents, N_frame=N_frame,
+
+if args.mode == "Planner":
+    env = QuadrotorFormation(n_agents=n_agents, N_frame=N_frame,
+                             visualization=visualization, is_centralized=is_centralized, is_planner=True)
+elif args.mode == "Train" or args.mode == "Test":
+    env = QuadrotorFormation(n_agents=n_agents, N_frame=N_frame,
                              visualization=visualization, is_centralized=is_centralized)
 
 # Enemy comm
@@ -172,7 +177,7 @@ torch.manual_seed(args.seed)
 
 
 if args.commnet:
-    policy_net = CommNetMLP(args, n_agents)
+    policy_net = CommNetMLP(args, env)
 elif args.random:
     policy_net = Random(args, n_agents)
 elif args.recurrent:
@@ -194,6 +199,7 @@ if args.nprocesses > 1:
 else:
     trainer = Trainer(args, policy_net, env, is_centralized)
     tester = Tester(args, policy_net, env, is_centralized)
+    planner = Planner(env, is_centralized) 
 
 disp_trainer = Trainer(args, policy_net, env)
 disp_trainer.display = True
@@ -221,7 +227,7 @@ def train_run(num_epochs):
     best_reward_train = -np.Inf
     best_covered_grids = 0.0
     best_reward_test = -np.Inf
-    eval_period = 100
+    eval_period = 50
     uncertainty_threshold = 0.6
 
     for ep in range(num_epochs):
@@ -286,6 +292,8 @@ def train_run(num_epochs):
                 print ("The model is being saved!")
                 best_reward_test = test_reward
                 save(args.save, ep+1, "test")
+        
+        print ("")
 
         # if args.save != '':
         #     save(args.save)
@@ -322,11 +330,19 @@ if args.mode == "Train":
     print ("Train mode is executed! \n")
     time.sleep(1.0)
     train_run(args.num_epochs)
-else:
+elif args.mode == "Test":
     print ("Test mode is executed! \n")
     time.sleep(1.0)
     load("./model/model_test_3900.pt")
     tester.test_batch()
+else:
+    print ("Planner mode is executed! \n")
+    time.sleep(1.0)
+    planner.test_batch()
+
+if visualization:
+    env.close()
+
 
 if args.display:
     env.end_display()

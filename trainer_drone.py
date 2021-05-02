@@ -6,6 +6,7 @@ from torch import optim
 import torch.nn as nn
 from utils import *
 from action_utils import *
+from AstarF import *
 import pickle
 
 Transition = namedtuple('Transition', ('state', 'action', 'action_out', 'value', 'episode_mask', 'episode_mini_mask', 'next_state',
@@ -28,8 +29,12 @@ class Trainer(object):
         self.N_iteration = 1000
 
         self.misc_arr = np.zeros((self.N_iteration, self.args.nagents))
-        self.state_arr = np.zeros((self.N_iteration, self.args.nagents, (self.args.nagents+1)*5+2, self.env.out_shape, self.env.out_shape))
-        self.next_state_arr = np.zeros((self.N_iteration, self.args.nagents, (self.args.nagents+1)*5+2, self.env.out_shape, self.env.out_shape))
+        # self.state_arr = np.zeros((self.N_iteration, self.args.nagents, (self.args.nagents+1)*5+2, self.env.out_shape, self.env.out_shape))
+        # self.next_state_arr = np.zeros((self.N_iteration, self.args.nagents, (self.args.nagents+1)*5+2, self.env.out_shape, self.env.out_shape))
+        self.state_arr = np.zeros((self.N_iteration, self.args.nagents, self.args.nagents*3 + 1))
+        self.next_state_arr = np.zeros((self.N_iteration, self.args.nagents, self.args.nagents*3 + 1))
+        self.uncertainty_arr = np.zeros((self.N_iteration, self.env.out_shape, self.env.out_shape))
+        self.next_uncertainty_arr = np.zeros((self.N_iteration, self.env.out_shape, self.env.out_shape))
         self.action_arr = np.zeros((self.N_iteration, self.args.nagents))
         self.action_out_arr = np.zeros((self.N_iteration, self.args.nagents, self.env.n_action))
         self.value_arr = np.zeros((self.N_iteration, self.args.nagents))
@@ -45,17 +50,10 @@ class Trainer(object):
         info = dict()
         switch_t = -1
 
-        reset_args = getargspec(self.env.reset).args
         total_obs, info = self.env.reset()
-        state, battery_status = total_obs
-        should_display = self.display and self.last_step
+        state, uncertainty_map = total_obs
 
         final_step = self.N_iteration
-
-        # if should_display:
-        #     self.env.display()
-        
-
         prev_hid = torch.zeros(1, self.args.nagents, self.args.hid_size)
 
         for t in range(self.N_iteration):
@@ -64,10 +62,9 @@ class Trainer(object):
                 info['comm_action'] = np.zeros(self.args.nagents, dtype=int)
 
             state = torch.DoubleTensor(state)
-            state = state.view(self.args.nagents, state.size(-3), state.size(-2), state.size(-1))
-            battery_status = torch.DoubleTensor(battery_status)
-            battery_status = battery_status.view(self.args.nagents, -1)
-            # state = state.view(-1, self.args.nagents, state.size(-3), state.size(-2), state.size(-1))
+            state = state.view(self.args.nagents, self.args.nagents*3 + 1)
+            uncertainty_map = torch.DoubleTensor(uncertainty_map)
+            uncertainty_map = uncertainty_map.view(1,1,self.env.out_shape, self.env.out_shape)
 
             # recurrence over time
             if self.args.recurrent:
@@ -75,7 +72,7 @@ class Trainer(object):
                     prev_hid = self.policy_net.init_hidden(batch_size=1)
 
                 x = [state, prev_hid]
-                action_out, value, prev_hid = self.policy_net(x, battery_status, info)
+                action_out, value, prev_hid = self.policy_net(x, uncertainty_map, info)
                 
 
                 if (t + 1) % self.args.detach_gap == 0:
@@ -85,13 +82,15 @@ class Trainer(object):
                         prev_hid = prev_hid.detach()
             else:
                 x = state
-                action_out, value = self.policy_net(x, battery_status, info)
+                action_out, value = self.policy_net(x, uncertainty_map, info)
 
             action = select_action(self.args, action_out)
             action, actual = translate_action(self.args, self.env, action)
             total_obs, reward, done, info = self.env.step(action, t, self.is_centralized)
-            next_state, battery_status = total_obs
-            print ("T-Episode/Iteration: {0}/{1}, Actions: {2}, Rewards: {3}".format(epoch+1, t+1, action[0], reward))
+            next_state, uncertainty_map = total_obs
+
+            if (t+1) % 20 == 0:
+                print ("T-Eps/Iter: {0}/{1}, Actions: {2}, Rewards: {3}, Agent status: {4}".format(epoch+1, t+1, action[0], reward, self.env.agent_status))
 
             # store comm_action in info for next step
             if self.args.hard_attn and self.args.commnet:
@@ -132,8 +131,8 @@ class Trainer(object):
             # episode.append(trans)
 
             self.misc_arr[t,:] = np.copy(misc['alive_mask'])
-            self.state_arr[t,:,:,:,:] = np.copy(state)
-            self.next_state_arr[t,:,:,:,:] = np.copy(next_state)
+            self.state_arr[t,:,:] = np.copy(state)
+            self.next_state_arr[t,:,:] = np.copy(next_state)
             self.action_arr[t,:] = np.copy(action)
             self.action_out_arr[t,:, :] = np.copy(action_out[0].detach().numpy())
             self.value_arr[t, :] = np.copy(value.detach().numpy()).ravel()
@@ -180,8 +179,8 @@ class Trainer(object):
         self.stats = dict()
         self.stats['num_episodes'] = 0
 
-        state_total_batch = np.array([]).reshape((0, self.args.nagents, (self.args.nagents+1)*5+2, self.env.out_shape, self.env.out_shape))
-        next_state_total_batch = np.array([]).reshape((0, self.args.nagents, (self.args.nagents+1)*5+2, self.env.out_shape, self.env.out_shape))
+        state_total_batch = np.array([]).reshape((0, self.args.nagents, (self.args.nagents)*3+1))
+        next_state_total_batch = np.array([]).reshape((0, self.args.nagents, (self.args.nagents)*3+1))
         action_total_batch = np.array([]).reshape((0, self.args.nagents))
         action_out_total_batch = np.array([]).reshape((0, self.args.nagents, self.env.n_action))
         value_total_batch = np.array([]).reshape((0, self.args.nagents))
@@ -251,8 +250,6 @@ class Trainer(object):
         # old_actions = old_actions.view(-1, n, dim_actions)
         # print(old_actions == actions)
 
-        
-
         # can't do batch forward.
         # values = torch.cat(values, dim=0)
         # action_out = [torch.cat(a, dim=0) for a in action_out]
@@ -295,20 +292,7 @@ class Trainer(object):
             action_means, action_log_stds, action_stds = action_out
             log_prob = normal_log_density(actions, action_means, action_log_stds, action_stds)
         else:
-            # action_out0:  torch.Size([20, 3, 5])
-            # action_out1:  torch.Size([20, 3, 2])
-            # log_p_a0:  torch.Size([60, 5])
-            # log_p_a1:  torch.Size([60, 2])
-            # actions:  torch.Size([60, 2])
-            # actions[:, i]:  torch.Size([60])
-            # actions[:, i].long().unsqueeze(1):  torch.Size([60, 1])
-            # log_probs[i]:  torch.Size([60, 5])
-            # actions[:, i]:  torch.Size([60])
-            # actions[:, i].long().unsqueeze(1):  torch.Size([60, 1])
-            # log_probs[i]:  torch.Size([60, 2])
-            # print ("action_out: ", action_out.size())
-            # log_p_a = [action_out[i].view(-1, num_actions[i]) for i in range(dim_actions)]
-            log_p_a = [action_out.view(-1, 6)]
+            log_p_a = [action_out.view(-1, self.env.n_action)]
             # print ("log_p_a: ", log_p_a[0].size())
             # print ("log_p_a: ", log_p_a)
             actions = actions.contiguous().view(-1, dim_actions)
@@ -366,18 +350,6 @@ class Trainer(object):
 class Tester(Trainer):
     def __init__(self, args, policy_net, env, is_centralized = False):
         super().__init__(args, policy_net, env, is_centralized)
-        np.set_printoptions(precision=2)
-        self.args = args
-        self.policy_net = policy_net
-        self.env = env
-        self.is_centralized = is_centralized
-        self.display = False
-        self.last_step = False
-        self.optimizer = optim.RMSprop(policy_net.parameters(),
-            lr = args.lrate, alpha=0.97, eps=1e-6)
-        self.params = [p for p in self.policy_net.parameters()]
-        self.num_inputs = 294
-
 
     def get_episode(self, epoch):
         episode = []
@@ -386,19 +358,11 @@ class Tester(Trainer):
         info = dict()
         switch_t = -1
 
-        reset_args = getargspec(self.env.reset).args
         total_obs, info = self.env.reset()
-        state, battery_status = total_obs
-        should_display = self.display and self.last_step
+        state, uncertainty_map = total_obs
 
         final_step = self.N_iteration
-
         pos_list = np.zeros((3, self.N_iteration, self.env.n_agents))
-
-        # if should_display:
-        #     self.env.display()
-        
-
         prev_hid = torch.zeros(1, self.args.nagents, self.args.hid_size)
 
         for t in range(self.N_iteration):
@@ -407,9 +371,10 @@ class Tester(Trainer):
                 info['comm_action'] = np.zeros(self.args.nagents, dtype=int)
 
             state = torch.DoubleTensor(state)
-            state = state.view(self.args.nagents, state.size(-3), state.size(-2), state.size(-1))
-            battery_status = torch.DoubleTensor(battery_status)
-            battery_status = battery_status.view(self.args.nagents, -1)
+            state = state.view(self.args.nagents, self.args.nagents*3 + 1)
+            uncertainty_map = torch.DoubleTensor(uncertainty_map)
+            uncertainty_map = uncertainty_map.view(1,1,self.env.out_shape, self.env.out_shape)
+
             # state = state.view(-1, self.args.nagents, state.size(-3), state.size(-2), state.size(-1))
 
             for j in range(self.env.n_agents):
@@ -423,8 +388,7 @@ class Tester(Trainer):
                     prev_hid = self.policy_net.init_hidden(batch_size=1)
 
                 x = [state, prev_hid]
-                action_out, value, prev_hid = self.policy_net(x, battery_status, info)
-                
+                action_out, value, prev_hid = self.policy_net(x, uncertainty_map, info)
 
                 if (t + 1) % self.args.detach_gap == 0:
                     if self.args.rnn_type == 'LSTM':
@@ -433,13 +397,14 @@ class Tester(Trainer):
                         prev_hid = prev_hid.detach()
             else:
                 x = state
-                action_out, value = self.policy_net(x, battery_status, info)
+                action_out, value = self.policy_net(x, uncertainty_map, info)
 
             action = select_action(self.args, action_out)
             action, actual = translate_action(self.args, self.env, action)
             total_obs, reward, done, info = self.env.step(action, t, self.is_centralized)
-            next_state, battery_status = total_obs
-            print ("E-Episode/Iteration: {0}/{1}, Actions: {2}, Rewards: {3}".format(epoch+1, t+1, action[0], reward))
+            next_state, uncertainty_map = total_obs
+            if (t+1) % 20 == 0:
+                print ("E-Eps/Iter: {0}/{1}, Actions: {2}, Rewards: {3}, Agent status: {4}".format(epoch+1, t+1, action[0], reward, self.env.agent_status))
 
             # store comm_action in info for next step
             if self.args.hard_attn and self.args.commnet:
@@ -472,22 +437,6 @@ class Tester(Trainer):
             else:
                 if 'is_completed' in info:
                     episode_mini_mask = 1 - info['is_completed'].reshape(-1)
-
-            # if should_display:
-            #     self.env.display()
-
-            # trans = Transition(state, action, action_out, value, episode_mask, episode_mini_mask, next_state, reward, misc)
-            
-            # episode.append(trans)
-            self.misc_arr[t,:] = np.copy(misc['alive_mask'])
-            self.state_arr[t,:,:,:,:] = np.copy(state)
-            self.next_state_arr[t,:,:,:,:] = np.copy(next_state)
-            self.action_arr[t,:] = np.copy(action)
-            self.action_out_arr[t,:, :] = np.copy(action_out[0].detach().numpy())
-            self.value_arr[t, :] = np.copy(value.detach().numpy()).ravel()
-            self.episode_mask_arr[t, :] = np.copy(episode_mask)
-            self.episode_mini_mask_arr[t, :] = np.copy(episode_mini_mask)
-            self.reward_arr[t,:] = np.copy(reward)
             
             state = np.copy(next_state)
             
@@ -496,8 +445,6 @@ class Tester(Trainer):
                 break
         stat['num_steps'] = t + 1
         stat['steps_taken'] = stat['num_steps']
-
-        batch = self.state_arr[0:final_step], self.action_arr[0:final_step], self.action_out_arr[0:final_step], self.value_arr[0:final_step], self.episode_mask_arr[0:final_step], self.episode_mini_mask_arr[0:final_step], self.next_state_arr[0:final_step], self.reward_arr[0:final_step], self.misc_arr[0:final_step]
         
         return pos_list, stat
 
@@ -517,8 +464,169 @@ class Tester(Trainer):
 
         return stat
 
-    def state_dict(self):
-        return self.optimizer.state_dict()
 
-    def load_state_dict(self, state):
-        self.optimizer.load_state_dict(state)
+class Planner:
+    def __init__(self, env, is_centralized = False):
+        np.set_printoptions(precision=2)
+        self.env = env
+        self.is_centralized = is_centralized
+        self.agent_indices = np.zeros(self.env.n_agents)
+        self.uncertainty_thresh = 0.2
+        self.N_iteration = 1000
+
+
+    def get_episode(self, epoch):
+        stat = dict()
+        astar_path = dict()
+        obs_x0, obs_y0, obs_z0 = self.env.obstacle_points[0][0], self.env.obstacle_points[0][1], self.env.obstacle_points[0][2]  
+        obs_x1, obs_y1, obs_z1 = self.env.obstacle_points[0][3], self.env.obstacle_points[0][4], self.env.obstacle_points[0][5]  
+
+        self.env.reset()
+
+        pos_list = np.zeros((3, self.N_iteration, self.env.n_agents))  
+
+        on_the_battery_way = np.zeros(self.env.n_agents)
+        agent_battery_path = {i:[] for i in range(self.env.n_agents)}
+
+        battery_location_center = [[(battery[0] + battery[3])/2, (battery[1] + battery[4])/2, (battery[2] + battery[5])/2] 
+                                    for battery in self.env.battery_points]
+        agent_n_iter = np.ones(self.env.n_agents) * 3
+        for t in range(self.N_iteration):
+            misc = dict()
+            action_list = []
+            
+            for agent_index in range(self.env.n_agents):
+                # print ("state {0}: X:{1:.3}, Y:{2:.3}, Z:{3:.3}".format(i+1, self.env.quadrotors[i].state[0], 
+                #                                                 self.env.quadrotors[i].state[1],self.env.quadrotors[i].state[2] ))
+                start_pos = self.env.quadrotors[agent_index].state[0:3]
+                pos_list[:, t, agent_index] = self.env.quadrotors[agent_index].state[0:3]
+
+
+                if self.env.battery_status[agent_index] < self.env.battery_critical_level and len(agent_battery_path[agent_index]) == 0:
+                    on_the_battery_way[agent_index] = 1
+                    distance_to_battery = [np.sum((start_pos-battery)**2) for battery in battery_location_center]
+                    sorted_indices = np.argsort(distance_to_battery)
+                    # print ("start pos: ", start_pos)
+                    for index in sorted_indices:
+                        if (start_pos[0] < self.env.obstacle_points[0][0] < self.env.battery_points[index][0]) or \
+                            (start_pos[0] > self.env.obstacle_points[0][0] > self.env.battery_points[index][0]):
+                            # print ("not allowed: ", battery_location_center[index])
+                            continue
+                        else:
+                            final_pos = battery_location_center[index]
+                            final_pos[2] = start_pos[2]
+                            # print ("allowed: ", final_pos)
+                            break
+
+                    # index = np.argmin(np.sum(np.subtract(start_pos, self.env.battery_positions)**2,axis=1))
+                    # closest_battery_pos = self.env.battery_positions[index]
+                    # closest_battery_index = self.env.get_closest_grid(closest_battery_pos)
+                    # final_pos = self.env.uncertainty_grids[closest_battery_index]
+                    # final_pos = [final_pos[0], final_pos[1], start_pos[2]] # z locations should be the same
+                    path = astar_drone(start_pos, final_pos, self.env)
+                    agent_battery_path[agent_index] = path[1:]
+                    print ("Battery status of agent {0} is below critical level. It's heading to the battery station!".format(agent_index+1))
+                elif self.env.battery_status[agent_index] >= self.env.battery_critical_level and on_the_battery_way[agent_index] == 1:
+                    on_the_battery_way[agent_index] = 0
+                    agent_battery_path[agent_index] = []
+                    print ("Agent {0} is fully recharged!".format(agent_index+1))
+
+
+                if len(agent_battery_path[agent_index]) > 0:
+                    action = agent_battery_path[agent_index][0][1]
+                    agent_battery_path[agent_index].pop(0) 
+                    print ("Agent {0} is executing the A* path. Action: {1}".format(agent_index+1, action))
+                else:
+
+                    if self.env.agent_is_stuck[agent_index] == 1.0:
+                        pos_coef = 10.0
+                        escape_index = -1
+                        start_pos = np.array(self.env.quadrotors[agent_index].state[0:3])
+                    
+                        while (escape_index == -1):
+                            escape_pos = np.array([np.random.uniform(-pos_coef, pos_coef), np.random.uniform(-pos_coef, pos_coef), start_pos[2]])
+                            escape_index = self.env.get_closest_grid(escape_pos)
+                            
+                            if escape_index in self.env.obstacle_indices:
+                                escape_index = -1
+
+                        escape_pos = self.env.uncertainty_grids[escape_index]
+                        print ("Agent {0} is stuck. Its position: {1} and heading to a random position: {2}".format(agent_index+1, start_pos, escape_pos))
+                        path = astar_drone(start_pos, escape_pos, self.env)
+                        agent_battery_path[agent_index] = path[1:]
+                        
+
+                    else:
+                        neighbor_grids = self.env.get_neighbor_grids(agent_index)
+                        action_index_pairs = dict(neighbor_grids)
+                        
+                        for key in neighbor_grids.keys():
+                            neighbor_pos = self.env.uncertainty_grids[neighbor_grids[key]]
+                            if (neighbor_pos[0] >= obs_x0 and neighbor_pos[0] <= obs_x1) and (neighbor_pos[1] >= obs_y0 and neighbor_pos[1] <= obs_y1):
+                                # print ("Key: {0} is in the obstacle list: {1}".format(neighbor_grids[key], np.array(neighbor_pos)))
+                                del action_index_pairs[key]
+                            elif neighbor_grids[key] in self.env.agent_pos_index :
+                                # print ("Key: {0} is in the agent list".format(neighbor_grids[key]))
+                                del action_index_pairs[key]
+                            # elif neighbor_grids[key] in self.env.battery_indices :
+                            #     # print ("Key: {0} is in the agent list".format(neighbor_grids[key]))
+                            #     del action_index_pairs[key]
+                            # else:
+                            #     if self.env.uncertainty_values[neighbor_grids[key]] < self.uncertainty_thresh:
+                            #         # print ("Key: {0} is under the given uncertainty threshold".format(neighbor_grids[key]))
+                            #         del action_index_pairs[key]
+
+
+                        allowable_actions = [*action_index_pairs]
+                        if len(allowable_actions) > 0:
+                            open_grids =  [neighbor_grids[act] for act in allowable_actions]
+                            non_battery_grids = np.setdiff1d(open_grids, self.env.battery_indices)
+                            # print ("prob values: ", self.env.uncertainty_values[open_grids])
+                            probabilities = self.env.uncertainty_values[open_grids]
+                            probabilities[open_grids == non_battery_grids] = np.clip(probabilities[open_grids == non_battery_grids], 0.3, 1.0)
+                            normalized_prob = probabilities / np.sum(probabilities)
+                            action = np.random.choice(allowable_actions, p=normalized_prob)
+                        else:
+                            action = -1
+
+
+                
+
+                action_list.append(action)
+
+                # print (action_index_pairs)
+                # print (allowable_actions)
+                # print ("Agent: {0} random action from the list: {1}".format(agent_index, action))
+            
+            reward, done = self.env.step(action_list, t, self.is_centralized)
+            print ("E-Episode/Iteration: {0}/{1}, Actions: {2}, Rewards: {3}".format(epoch+1, t+1, action_list, reward))
+
+
+            # env should handle this make sure that reward for dead agents is not counted
+            # reward = reward * misc['alive_mask']
+
+            stat['reward'] = stat.get('reward', 0) + reward
+                        
+            if done:
+                break
+
+        stat['num_steps'] = t + 1
+        stat['steps_taken'] = stat['num_steps']
+        
+        return pos_list, stat
+
+    def test_batch(self, save=True):
+        batch = []
+        N_epoch = 5
+            
+        total_pos_list = []
+        for epoch in range(N_epoch):
+            pos_list, stat = self.get_episode(epoch)
+            if save:
+                total_pos_list.append(pos_list)
+                with open('./agents_position/agents_positions_planner.pkl', 'wb') as f:
+                    pickle.dump(total_pos_list, f)
+            else:
+                return stat
+
+        return stat

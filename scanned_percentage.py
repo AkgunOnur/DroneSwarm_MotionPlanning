@@ -98,7 +98,7 @@ def update_combined(R):
 def get_map_coverage():
     average_val_list = []
 
-    with open('agents_positions_4.pkl', 'rb') as f:
+    with open('./agents_position/agents_positions_planner.pkl', 'rb') as f:
         total_pos_list = pickle.load(f)
 
     for episode in range(len(total_pos_list)):
