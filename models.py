@@ -21,7 +21,6 @@ class MLP(nn.Module):
         self.tanh = nn.Tanh()
 
     def forward(self, x, info={}):
-        print ("x: ", x.size())
         x = self.tanh(self.affine1(x))
         h = self.tanh(sum([self.affine2(x), x]))
         v = self.value_head(h)
@@ -32,7 +31,6 @@ class MLP(nn.Module):
             action_std = torch.exp(action_log_std)
             return (action_mean, action_log_std, action_std), v
         else:
-            print ("self.heads: ", self.heads)
             return [F.log_softmax(head(h), dim=-1) for head in self.heads], v
 
 
@@ -80,7 +78,7 @@ class RNN(MLP):
             ret = (next_hid.clone(), cell_state.clone())
             next_hid = next_hid.view(batch_size, self.nagents, self.hid_size)
         else:
-            next_hid = torch.tanh(self.affine2(prev_hid) + encoded_x)
+            next_hid = F.tanh(self.affine2(prev_hid) + encoded_x)
             ret = next_hid
 
         v = self.value_head(next_hid)
@@ -96,3 +94,4 @@ class RNN(MLP):
         # dim 0 = num of layers * num of direction
         return tuple(( torch.zeros(batch_size * self.nagents, self.hid_size, requires_grad=True),
                        torch.zeros(batch_size * self.nagents, self.hid_size, requires_grad=True)))
+

@@ -2,6 +2,8 @@ import sys
 import time
 import signal
 import argparse
+import airsim
+import pprint
 
 import numpy as np
 import torch
@@ -13,6 +15,8 @@ from utils import *
 from action_utils import parse_action_args
 from trainer import Trainer
 from multi_processing import MultiProcessTrainer
+#from dubin import Dubin
+#from point_mass_formation import QuadrotorFormation
 
 torch.utils.backcompat.broadcast_warning.enabled = True
 torch.utils.backcompat.keepdim_warning.enabled = True
@@ -26,12 +30,12 @@ parser.add_argument('--num_epochs', default=100, type=int,
                     help='number of training epochs')
 parser.add_argument('--epoch_size', type=int, default=10,
                     help='number of update iterations in an epoch')
-parser.add_argument('--batch_size', type=int, default=20,
+parser.add_argument('--batch_size', type=int, default=500,
                     help='number of steps before each update (per thread)')
 parser.add_argument('--nprocesses', type=int, default=16,
                     help='How many processes to run')
 # model
-parser.add_argument('--hid_size', default=64, type=int,
+parser.add_argument('--hid_size', default=128, type=int,
                     help='hidden layer size')
 parser.add_argument('--recurrent', action='store_true', default=False,
                     help='make the model recurrent in time')
@@ -51,7 +55,7 @@ parser.add_argument('--entr', type=float, default=0,
 parser.add_argument('--value_coeff', type=float, default=0.01,
                     help='coeff for value loss term')
 # environment
-parser.add_argument('--env_name', default="predator_prey",
+parser.add_argument('--env_name', default="Cartpole",
                     help='name of the environment to run')
 parser.add_argument('--max_steps', default=20, type=int,
                     help='force to end the game after this many steps')
@@ -64,11 +68,11 @@ parser.add_argument('--plot', action='store_true', default=False,
                     help='plot training progress')
 parser.add_argument('--plot_env', default='main', type=str,
                     help='plot env name')
-parser.add_argument('--save', default='', type=str,
+parser.add_argument('--save', default='./weight/', type=str,
                     help='save the model after training')
-parser.add_argument('--save_every', default=0, type=int,
+parser.add_argument('--save_every', default=200, type=int,
                     help='save the model after every n_th epoch')
-parser.add_argument('--load', default='', type=str,
+parser.add_argument('--load', default='./weight/', type=str,
                     help='load the model')
 parser.add_argument('--display', action="store_true", default=False,
                     help='Display environment state')
@@ -107,9 +111,15 @@ parser.add_argument('--advantages_per_action', default=False, action='store_true
                     help='Whether to multipy log porb for each chosen action with advantages')
 parser.add_argument('--share_weights', default=False, action='store_true',
                     help='Share weights for hops')
+parser.add_argument('--test', default=False,
+                    help='Train or Test')
+parser.add_argument('--scenario', type=str, default='planning',
+                    help='predator or planning ')
+parser.add_argument('--model',  default="Train",
+                    help="Train or Test mode")
 
 
-init_args_for_env(parser)
+#init_args_for_env(parser)
 args = parser.parse_args()
 
 if args.ic3net:
@@ -129,22 +139,44 @@ if hasattr(args, 'enemy_comm') and args.enemy_comm:
     else:
         raise RuntimeError("Env. needs to pass argument 'nenemy'.")
 
-env = data.init(args.env_name, args, False)
+visualization = False
+is_centralized = False
+N_frame = 5
 
-num_inputs = env.observation_dim
-args.num_actions = env.num_actions
+#env = Dubin(args)
+if args.scenario == 'predator':
+    from predator_prey import QuadrotorFormation
+    env = QuadrotorFormation()
+elif args.scenario == 'planning':
+    from planning import QuadrotorFormation
+
+    if args.model == "Planner":
+        env = QuadrotorFormation(n_agents=args.nagents, N_frame=N_frame,
+                                visualization=visualization, is_centralized=is_centralized, is_planner=True)
+    elif args.model == "Train" or args.model == "Test":
+        env = QuadrotorFormation(n_agents=args.nagents, N_frame=N_frame,
+                            visualization=visualization, is_centralized=is_centralized)
+
+
+
+else:
+    print("Scenario is wrong. Please select: predator or planning")
+num_inputs = 12
+args.num_actions = env.n_action
+
 
 # Multi-action
 if not isinstance(args.num_actions, (list, tuple)): # single action case
     args.num_actions = [args.num_actions]
-args.dim_actions = env.dim_actions
+
+args.dim_actions = 1
 args.num_inputs = num_inputs
 
 # Hard attention
 if args.hard_attn and args.commnet:
     # add comm_action as last dim in actions
     args.num_actions = [*args.num_actions, 2]
-    args.dim_actions = env.dim_actions + 1
+    args.dim_actions = args.dim_actions + 1
 
 # Recurrence
 if args.commnet and (args.recurrent or args.rnn_type == 'LSTM'):
@@ -162,15 +194,15 @@ print(args)
 
 
 if args.commnet:
+    print("Policy Net: CommNetMLP")
     policy_net = CommNetMLP(args, num_inputs)
 elif args.random:
     policy_net = Random(args, num_inputs)
 elif args.recurrent:
     policy_net = RNN(args, num_inputs)
+    print("Policy Net: RNN")
 else:
     policy_net = MLP(args, num_inputs)
-
-print ("policy_net: ", policy_net)
 
 if not args.display:
     display_models([policy_net])
@@ -180,11 +212,16 @@ for p in policy_net.parameters():
     p.data.share_memory_()
 
 if args.nprocesses > 1:
-    trainer = MultiProcessTrainer(args, lambda: Trainer(args, policy_net, data.init(args.env_name, args)))
+    trainer = MultiProcessTrainer(args, lambda: Trainer(args, policy_net, env))
 else:
-    trainer = Trainer(args, policy_net, data.init(args.env_name, args))
+    if args.scenario == 'predator':
+        trainer = Trainer(args, policy_net, env, None)
+        disp_trainer = Trainer(args, policy_net, env, None)
+    elif args.scenario == 'planning':
+        trainer = Trainer(args, policy_net, env, is_centralized)
+        disp_trainer = Trainer(args, policy_net, env, is_centralized)
 
-disp_trainer = Trainer(args, policy_net, data.init(args.env_name, args, False))
+#disp_trainer = Trainer(args, policy_net, env)
 disp_trainer.display = True
 def disp():
     x = disp_trainer.get_episode()
@@ -206,68 +243,173 @@ if args.plot:
     vis = visdom.Visdom(env=args.plot_env)
 
 def run(num_epochs):
-    for ep in range(num_epochs):
-        epoch_begin_time = time.time()
-        stat = dict()
-        for n in range(args.epoch_size):
-            if n == args.epoch_size - 1 and args.display:
-                trainer.display = True
-            s = trainer.train_batch(ep)
-            merge_stat(s, stat)
-            trainer.display = False
 
-        epoch_time = time.time() - epoch_begin_time
-        epoch = len(log['epoch'].data) + 1
-        for k, v in log.items():
-            if k == 'epoch':
-                v.data.append(epoch)
-            else:
-                if k in stat and v.divide_by is not None and stat[v.divide_by] > 0:
-                    stat[k] = stat[k] / stat[v.divide_by]
-                v.data.append(stat.get(k, 0))
+    takeoff = False
 
-        np.set_printoptions(precision=2)
+    if not args.test:
+        print("TRAIN MODE")
+        for ep in range(num_epochs):
+            epoch_begin_time = time.time()
+            stat = dict()
+            for n in range(args.epoch_size):
+                if n == args.epoch_size - 1 and args.display:
+                    trainer.display = True
+                s = trainer.train_batch(ep)
+                merge_stat(s, stat)
+                trainer.display = False
 
-        print('Epoch {}\tReward {}\tTime {:.2f}s'.format(
-                epoch, stat['reward'], epoch_time
-        ))
-
-        if 'enemy_reward' in stat.keys():
-            print('Enemy-Reward: {}'.format(stat['enemy_reward']))
-        if 'add_rate' in stat.keys():
-            print('Add-Rate: {:.2f}'.format(stat['add_rate']))
-        if 'success' in stat.keys():
-            print('Success: {:.2f}'.format(stat['success']))
-        if 'steps_taken' in stat.keys():
-            print('Steps-taken: {:.2f}'.format(stat['steps_taken']))
-        if 'comm_action' in stat.keys():
-            print('Comm-Action: {}'.format(stat['comm_action']))
-        if 'enemy_comm' in stat.keys():
-            print('Enemy-Comm: {}'.format(stat['enemy_comm']))
-
-        if args.plot:
+            epoch_time = time.time() - epoch_begin_time
+            epoch = len(log['epoch'].data) + 1
             for k, v in log.items():
-                if v.plot and len(v.data) > 0:
-                    vis.line(np.asarray(v.data), np.asarray(log[v.x_axis].data[-len(v.data):]),
-                    win=k, opts=dict(xlabel=v.x_axis, ylabel=k))
+                if k == 'epoch':
+                    v.data.append(epoch)
+                else:
+                    if k in stat and v.divide_by is not None and stat[v.divide_by] > 0:
+                        stat[k] = stat[k] / stat[v.divide_by]
+                    v.data.append(stat.get(k, 0))
 
-        if args.save_every and ep and args.save != '' and ep % args.save_every == 0:
-            # fname, ext = args.save.split('.')
-            # save(fname + '_' + str(ep) + '.' + ext)
-            save(args.save + '_' + str(ep))
+            np.set_printoptions(precision=2)
 
-        if args.save != '':
-            save(args.save)
+            print('Epoch {}\tReward {}\tTime {:.2f}s'.format(
+                    epoch, stat['reward'], epoch_time
+            ))
 
-def save(path):
+            if 'enemy_reward' in stat.keys():
+                print('Enemy-Reward: {}'.format(stat['enemy_reward']))
+            if 'add_rate' in stat.keys():
+                print('Add-Rate: {:.2f}'.format(stat['add_rate']))
+            if 'success' in stat.keys():
+                print('Success: {:.2f}'.format(stat['success']))
+            if 'steps_taken' in stat.keys():
+                print('Steps-taken: {:.2f}'.format(stat['steps_taken']))
+            if 'comm_action' in stat.keys():
+                print('Comm-Action: {}'.format(stat['comm_action']))
+            if 'enemy_comm' in stat.keys():
+                print('Enemy-Comm: {}'.format(stat['enemy_comm']))
+
+            if args.plot:
+                for k, v in log.items():
+                    if v.plot and len(v.data) > 0:
+                        vis.line(np.asarray(v.data), np.asarray(log[v.x_axis].data[-len(v.data):]),
+                        win=k, opts=dict(xlabel=v.x_axis, ylabel=k))
+
+            if ep % args.save_every == 0 and ep != 0:
+                save(args.save, ep)
+    else:
+        print('TEST MODE')
+            
+        for ep in range(args.epoch_size):
+            takeoff = False
+
+            if args.scenario == 'predator':
+                _, agent_pos, bot_pos = trainer.test_batch(ep)
+            elif args.scenario == 'planning':
+                _, agent_pos = trainer.test_batch(ep)
+
+            trainer.display = False
+            print("Episode:", ep)
+
+            client = airsim.MultirotorClient()
+            client.confirmConnection()
+            client.enableApiControl(True, "Drone1")
+            client.enableApiControl(True, "Drone2")
+            if args.scenario == 'predator':
+                client.enableApiControl(True, "Bot1")
+                client.enableApiControl(True, "Bot2")
+            client.armDisarm(True, "Drone1")
+            client.armDisarm(True, "Drone2")
+            if args.scenario == 'predator':
+                client.armDisarm(True, "Bot1")
+                client.armDisarm(True, "Bot2")
+
+            if not takeoff:
+                airsim.wait_key('Press any key to takeoff')
+                f1 = client.takeoffAsync(vehicle_name="Drone1")
+                f2 = client.takeoffAsync(vehicle_name="Drone2")
+                if args.scenario == 'predator':
+                    f3 = client.takeoffAsync(vehicle_name="Bot1")
+                    f4 = client.takeoffAsync(vehicle_name="Bot2")
+                f1.join()
+                f2.join()
+                if args.scenario == 'predator':
+                    f3.join()
+                    f4.join()
+                takeoff = True
+
+            i = 0
+            if args.scenario == 'predator':
+                for agent_p, bot_p in zip(agent_pos, bot_pos):
+
+                    print("Agents",agent_p)
+                    print("Bots",bot_p)
+                    
+                    if i == 0:
+                        airsim.wait_key('Press any key to take initial position')
+                        f1 = client.moveToPositionAsync(agent_p[0][0], agent_p[0][1], agent_p[0][2], 5, vehicle_name="Drone1")
+                        f2 = client.moveToPositionAsync(agent_p[1][0], agent_p[1][1], agent_p[1][2], 5, vehicle_name="Drone2")
+                        f3 = client.moveToPositionAsync(bot_p[0][0], bot_p[0][1], bot_p[0][2], 5, vehicle_name="Bot1")
+                        f4 = client.moveToPositionAsync(bot_p[1][0], bot_p[1][1], bot_p[1][2], 5, vehicle_name="Bot2")
+                        f1.join()
+                        f2.join()
+                        f3.join()
+                        f4.join()
+
+                    else:
+                        f1 = client.moveToPositionAsync(agent_p[0][0], agent_p[0][1], agent_p[0][2], 5, vehicle_name="Drone1")
+                        f2 = client.moveToPositionAsync(agent_p[1][0], agent_p[1][1], agent_p[1][2], 5, vehicle_name="Drone2")
+                        f3 = client.moveToPositionAsync(bot_p[0][0], bot_p[0][1], bot_p[0][2], 5, vehicle_name="Bot1")
+                        f4 = client.moveToPositionAsync(bot_p[1][0], bot_p[1][1], bot_p[1][2], 5, vehicle_name="Bot2")
+                        #f1.join()
+                        #f2.join()
+                        #f3.join()
+                        #f4.join()
+                        time.sleep(0.2)
+                    i += 1
+
+            elif args.scenario == 'planning':
+                for agent_p in zip(agent_pos):
+
+                    print("Agents",agent_p)
+                    
+                    if i == 0:
+                        airsim.wait_key('Press any key to take initial position')
+                        f1 = client.moveToPositionAsync(agent_p[0][0][0], agent_p[0][0][1], -agent_p[0][0][2], 5, vehicle_name="Drone1")
+                        f2 = client.moveToPositionAsync(agent_p[0][1][0], agent_p[0][1][1], -agent_p[0][1][2], 5, vehicle_name="Drone2")
+                        f1.join()
+                        f2.join()
+
+                    else:
+                        f1 = client.moveToPositionAsync(agent_p[0][0][0], agent_p[0][0][1], -agent_p[0][0][2], 5, vehicle_name="Drone1")
+                        f2 = client.moveToPositionAsync(agent_p[0][1][0], agent_p[0][1][1], -agent_p[0][1][2], 5, vehicle_name="Drone2")
+                        time.sleep(0.2)
+                    i += 1
+            
+            s1 = client.takeoffAsync(vehicle_name="Drone1")
+            s2 = client.takeoffAsync(vehicle_name="Drone2")
+            if args.scenario == 'predator':
+                s3 = client.takeoffAsync(vehicle_name="Bot1")
+                s4 = client.takeoffAsync(vehicle_name="Bot2")
+            s1.join()
+            s2.join()
+            if args.scenario == 'predator':
+                s3.join()
+                s4.join()
+
+                    
+
+
+def save(path, ep):
+    file_path = path + args.scenario + "/" + args.scenario + ".pt"
     d = dict()
     d['policy_net'] = policy_net.state_dict()
     d['log'] = log
     d['trainer'] = trainer.state_dict()
-    torch.save(d, path)
+    torch.save(d, file_path)
+    print("model saved")
 
 def load(path):
-    d = torch.load(path)
+    file_path = path + args.scenario + "/" + args.scenario + ".pt"
+    d = torch.load(file_path)
     # log.clear()
     policy_net.load_state_dict(d['policy_net'])
     log.update(d['log'])
@@ -281,8 +423,10 @@ def signal_handler(signal, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-if args.load != '':
+if args.load != '' and args.test:
+#if args.load != '':
     load(args.load)
+
 
 run(args.num_epochs)
 if args.display:

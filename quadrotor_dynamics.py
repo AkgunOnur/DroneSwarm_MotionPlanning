@@ -33,6 +33,40 @@ def body_to_world(state, waypoint_body):
     return waypoint_world.ravel()
 
 
+class Drone:
+    def __init__(self, state0):
+        self.state = np.array(state0)
+        self.v = 4
+        #self.x = 0
+        #self.y = 0
+        #self.z = 0
+        self.psi = 0
+        self.vx = 0
+        self.vy = 0
+        self.psi_dot = 0
+        self.angle_between = 0
+        self.reward = 0
+        self.is_alive = True
+
+
+class Bot:
+    def __init__(self, state0, target_state0):
+        self.state = np.array(state0)
+        self.target_state = np.array(target_state0)
+        self.x_targetd = None
+        self.y_targetd = None
+        self.vd = 1
+        #self.xd = 0
+        #self.yd = 0
+        #self.zd = 0
+        self.psid = 0
+        self.vxd = 0
+        self.vyd = 0
+        self.psi_dotd = 0
+        self.angle_betweend = 0
+        self.is_alive = True
+
+
 class Quadrotor:
     
     def __init__(self, state0, coeff_pos=1.0, coeff_angle = 0.25, coeff_control = 0.0, coeff_final_pos=0.0):
