@@ -68,9 +68,9 @@ parser.add_argument('--plot', action='store_true', default=False,
                     help='plot training progress')
 parser.add_argument('--plot_env', default='main', type=str,
                     help='plot env name')
-parser.add_argument('--save', default='/okyanus/users/deepdrone/DroneSwarm_MotionPlanning/weight/', type=str,
+parser.add_argument('--save', default='/weight/', type=str,
                     help='save the model after training')
-parser.add_argument('--save_every', default=100, type=int,
+parser.add_argument('--save_every', default=200, type=int,
                     help='save the model after every n_th epoch')
 parser.add_argument('--load', default='./weight/', type=str,
                     help='load the model')
@@ -399,7 +399,7 @@ def run(num_epochs):
 
 
 def save(path, ep):
-    file_path = path + args.scenario + "/" + str(ep) + ".pt"
+    file_path = path + args.scenario + "/" + args.scenario + ".pt"
     d = dict()
     d['policy_net'] = policy_net.state_dict()
     d['log'] = log
@@ -433,7 +433,7 @@ if args.display:
     env.end_display()
 
 if args.save != '':
-    save(args.save, 'last')
+    save(args.save)
 
 if sys.flags.interactive == 0 and args.nprocesses > 1:
     trainer.quit()
