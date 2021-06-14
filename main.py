@@ -480,6 +480,8 @@ def run(num_epochs):
 
 
 def save(path, ep):
+    if not os.path.exists(path + args.scenario):
+        os.makedirs(path + args.scenario)
     file_path = path + args.scenario + "/" + str(ep) + ".pt"
     d = dict()
     d['policy_net'] = policy_net.state_dict()
@@ -490,7 +492,8 @@ def save(path, ep):
 
 
 def load(path):
-    #file_path = path + args.scenario + "/" + args.scenario + ".pt"
+    if not os.path.exists(path + args.scenario):
+        print("Cant find saved weights!!!")
     file_path = path + args.scenario + "/2000.pt"
     d = torch.load(file_path)
     # log.clear()
