@@ -19,8 +19,8 @@ from systematic_results import Reporter
 import pickle
 import glob
 import os
-#from dubin import Dubin
-#from point_mass_formation import QuadrotorFormation
+import json
+
 
 torch.utils.backcompat.broadcast_warning.enabled = True
 torch.utils.backcompat.keepdim_warning.enabled = True
@@ -124,6 +124,19 @@ parser.add_argument('--scenario', type=str, default='planning',
 
 # init_args_for_env(parser)
 args = parser.parse_args()
+
+# Data to be written
+dictionary = {
+    "name": args.scenario,
+}
+
+# Serializing json
+json_object = json.dumps(dictionary, indent=4)
+
+# Writing to sample.json
+with open("sample.json", "w") as outfile:
+    outfile.write(json_object)
+
 
 if args.ic3net:
     args.commnet = 1
