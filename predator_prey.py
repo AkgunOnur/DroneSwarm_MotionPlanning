@@ -186,7 +186,6 @@ class QuadrotorFormation(gym.Env):
         state = np.zeros((2,(self.n_bots+1)*3))
 
         for agent_ind in range(self.n_agents): 
-            # agent_ind:0 ->> 0,1,2 agent state
             state[agent_ind][0:3] = self.quadrotors[agent_ind].state * self.quadrotors[agent_ind].is_alive
             for bot_ind in range(self.n_bots):
                 # bot_ind:0 ->> 3,4,5 agent_state - bot1_state
