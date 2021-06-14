@@ -119,8 +119,8 @@ class QuadrotorFormation(gym.Env):
                         self.quadrotors[other_agents_ind].is_alive = False
                         self.quadrotors[agent_ind].state[2] = 0.0
                         self.quadrotors[other_agents_ind].state[2] = 0.0
-                        reward_list[agent_ind] -= 400
-                        reward_list[other_agents_ind] -= 400
+                        reward_list[agent_ind] -= 300
+                        reward_list[other_agents_ind] -= 300
             
             if not done:
                 for bot_ind in range(self.n_bots):
@@ -195,40 +195,60 @@ class QuadrotorFormation(gym.Env):
         return np.array(state)
 
 
-    def reset(self):
+    def generate_agent_position(self):
         self.quadrotors = []
-        self.bots = []
-        #self.agents_stacks = [deque([],maxlen=self.N_frame) for _ in range(self.n_agents)]
-        #self.bots_stacks = [deque([],maxlen=self.N_frame) for _ in range(self.n_bots)]
-        
-        self.iteration = 1
 
-        for agent_ind in range(0, self.n_agents):
-            current_pos = [self.np_random.uniform(low=-31, high=31), self.np_random.uniform(low=-31, high=31), self.np_random.uniform(low=-12, high=0)]
-            #current_pos = [-21, -21, 0]
+        for _ in range(0, self.n_agents):
+            current_pos = [self.np_random.uniform(low=-31, high=31), self.np_random.uniform(low=-31, high=31), self.np_random.uniform(low=-12, high=-2)]
             state0 = [current_pos[0], current_pos[1], current_pos[2]]
 
             self.quadrotors.append(Drone(state0))
-            #drone_stack = self.get_drone_stack(agent_ind)
 
-            #for j in range(self.N_frame):
-            #    self.agents_stacks[agent_ind].append(drone_stack)                
+    def generate_bot_position(self):
+        self.bots = []
 
+        for _ in range(0, self.n_bots):
+            current_pos = [self.np_random.uniform(low=-31, high=31), self.np_random.uniform(low=-31, high=31), self.np_random.uniform(low=-12, high=-2)]
+            target_pos = [self.np_random.uniform(low=-31, high=31), self.np_random.uniform(low=-31, high=31), self.np_random.uniform(low=-12, high=-2)]
 
-        for bot_ind in range(0, self.n_bots):
-            current_pos = [self.np_random.uniform(low=-31, high=31), self.np_random.uniform(low=-31, high=31), self.np_random.uniform(low=-12, high=0)]
-            #current_pos = [21.0, 21.0, -10.0]
-            target_pos = [self.np_random.uniform(low=-31, high=31), self.np_random.uniform(low=-31, high=31), self.np_random.uniform(low=-12, high=0)]
-            
             state0 = [current_pos[0], current_pos[1], current_pos[2]]
             target_state0 = [target_pos[0], target_pos[1], target_pos[2]]
 
             self.bots.append(Bot(state0, target_state0))
-            
-            #bot_stack = self.get_bot_stack(bot_ind)
 
-            #for j in range(self.N_frame):
-            #    self.bots_stacks[bot_ind].append(bot_stack)  
+    def check_collision(self):
+        collision = False
+        for agent_ind in range(self.n_agents):
+            for other_agents_ind in range(self.n_agents):
+
+                if agent_ind != other_agents_ind:
+                    dist = np.linalg.norm(self.quadrotors[agent_ind].state-self.quadrotors[other_agents_ind].state)
+
+                    if (dist <= 7):
+                        collision = True
+
+        for bot_ind in range(self.n_bots):
+            for other_bots_ind in range(self.n_bots):
+
+                if bot_ind != other_bots_ind:
+                    dist = np.linalg.norm(self.bots[bot_ind].state-self.bots[other_bots_ind].state)
+
+                    if (dist <= 7):
+                        collision = True
+
+        return collision
+
+    def reset(self):
+        self.generate_agent_position()
+        self.generate_bot_position()
+        self.iteration = 1
+
+        collision = self.check_collision()
+
+        if collision:
+            return self.reset()
+        else:
+            pass
 
         return self.get_observation()
 

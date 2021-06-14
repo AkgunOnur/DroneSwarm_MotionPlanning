@@ -73,7 +73,7 @@ parser.add_argument('--plot_env', default='main', type=str,
                     help='plot env name')
 
 # Abdullahtan al save kismini
-parser.add_argument('--save', default='/okyanus/users/deepdrone/DroneSwarm_MotionPlanning/weight/', type=str,
+parser.add_argument('--save', default='./weight/', type=str,
                     help='save the model after training')
 
 parser.add_argument('--save_every', default=100, type=int,
