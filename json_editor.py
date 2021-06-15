@@ -28,7 +28,7 @@ class Json_Editor():
                 file_data = json.load(file)
                 drone = {}
                 for n in range(self.nagent):
-                    drone['Drone'+str(n+1)] = {"VehicleType": "SimpleFlight", "X": np.random.randint(-20,20), "Y": np.random.randint(-20,20), "Z": np.random.randint(0,6)}
+                    drone['Drone'+str(n+1)] = {"VehicleType": "SimpleFlight", "X": np.random.randint(-20,20), "Y": np.random.randint(-20,20), "Z": np.random.randint(-6,0)}
 
                 # Join new_data with file_data
                 file_data['Vehicles'].update(drone)
