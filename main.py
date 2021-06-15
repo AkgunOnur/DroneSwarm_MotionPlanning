@@ -19,7 +19,7 @@ from systematic_results import Reporter
 import pickle
 import glob
 import os
-import json
+from json_editor import Json_Editor
 
 torch.utils.backcompat.broadcast_warning.enabled = True
 torch.utils.backcompat.keepdim_warning.enabled = True
@@ -129,12 +129,6 @@ dictionary = {
     "name": args.scenario,
 }
 
-# Serializing json
-json_object = json.dumps(dictionary, indent=4)
-
-# Writing to sample.json
-with open("sample.json", "w") as outfile:
-    outfile.write(json_object)
 
 
 if args.ic3net:
@@ -158,14 +152,22 @@ visualization = False
 is_centralized = False
 N_frame = 5
 
+js_modifier = Json_Editor(args.nagents)
 
 if args.scenario == 'predator':
     from predator_prey import QuadrotorFormation
     env = QuadrotorFormation()
+    #Set Up JSON file for AirSim
+    js_modifier = Json_Editor(2*args.nagents)
+    js_modifier.modify()
+
 elif args.scenario == 'planning':
     from planning import QuadrotorFormation
     env = QuadrotorFormation(n_agents=args.nagents, N_frame=N_frame,
                              visualization=visualization, is_centralized=is_centralized)
+    #Set Up JSON file for AirSim
+    js_modifier = Json_Editor(args.nagents)
+    js_modifier.modify()
 
 else:
     print("Scenario is wrong. Please select: predator or planning")
