@@ -30,8 +30,8 @@ class Reporter:
             low=0.95, high=1.0, size=(self.uncertainty_grids.shape[0],))
 
     def get_closest_n_grids(self, current_pos, n):
-        print("Currrent POS:", current_pos)
-        print("uncertainty_grids:", self.uncertainty_grids)
+        # print("Currrent POS:", current_pos)
+        # print("uncertainty_grids:", self.uncertainty_grids)
         differences = current_pos - self.uncertainty_grids
         distances = np.sum(differences * differences, axis=1)
         sorted_indices = sorted(range(len(distances)),

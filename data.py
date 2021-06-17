@@ -1,6 +1,6 @@
 import sys
 import gym
-import ic3net_envs
+#import ic3net_envs
 from env_wrappers import *
 
 def init(env_name, args, final_init=True):
