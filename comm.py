@@ -42,7 +42,7 @@ class CommNetMLP(nn.Module):
         self.encoder2_hid_size = 20
         #self.num_inputs = 294
         if self.args.scenario == 'predator':
-            self.num_inputs = 9
+            self.num_inputs = 12
         elif self.args.scenario == 'planning':
             self.num_inputs = 6*7*7
         self.encoder_out = self.encoder2_hid_size + self.nagents*3 + 1

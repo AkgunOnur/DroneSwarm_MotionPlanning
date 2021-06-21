@@ -1,7 +1,7 @@
 import gym
 from gym import spaces, error, utils
 from gym.utils import seeding
-from gym.envs.classic_control import rendering
+#from gym.envs.classic_control import rendering
 import numpy as np
 import configparser
 from os import path
@@ -13,8 +13,6 @@ from numpy.random import uniform
 from time import sleep
 from collections import deque
 
-
-
 font = {'family': 'sans-serif',
         'weight': 'bold',
         'size': 14}
@@ -22,9 +20,8 @@ font = {'family': 'sans-serif',
 
 class QuadrotorFormation(gym.Env):
 
-    def __init__(self, n_agents=2, n_bots = 2, N_frame=5, visualization=False, is_centralized = False):
+    def __init__(self, n_agents=2, n_bots = 2, N_frame=5, visualization=False, is_centralized = False, moving_target = False):
 
-        # number of actions per agent which are desired positions and yaw angle
         self.seed()
         self.n_action = 6
         self.observation_dim = 4
@@ -33,9 +30,9 @@ class QuadrotorFormation(gym.Env):
         self.n_bots = n_bots
         self.visualization = visualization
         self.is_centralized = is_centralized
+        self.moving_target = moving_target
         self.action_dict = {0:"Xp", 1:"Xn", 2:"Yp", 3:"Yn"}
 
-        #state0 = [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]
         self.quadrotors = []
         self.viewer = None
         self.dtau = 1e-3
@@ -62,7 +59,6 @@ class QuadrotorFormation(gym.Env):
         self.uncertainty_grids = np.vstack(
             (X.flatten(), Y.flatten())).T
 
-        print(self.uncertainty_grids.shape)
 
         self.N_frame = N_frame # Number of frames to be stacked
         self.frame_update_iter = 2
@@ -87,30 +83,25 @@ class QuadrotorFormation(gym.Env):
             agents_actions = self.action_list[action]
         else:
             agents_actions = np.reshape(action[0], (self.n_agents,))
-        
-        #drone_current_pos = np.array([[self.quadrotors[i].state[0], self.quadrotors[i].state[1]] for i in range(self.n_agents)])      
+            
 
         for agent_ind in range(self.n_agents):
             current_action = agents_actions[agent_ind]
             drone_current_state = self.get_drone_des_grid(agent_ind, current_action)
-            #current_pos = [drone_current_state[0],drone_current_state[1]]
 
-
-        #if self.iteration % self.frame_update_iter == 0:
-        #    for agent_ind in range(self.n_agents):
-        #        drone_stack = self.get_drone_stack(agent_ind)
-        #        self.agents_stacks[agent_ind].append(drone_stack)
-
-        #    for bot_ind in range(self.n_bots):
-        #        bot_stack = self.get_bot_stack(bot_ind)
-        #        self.bots_stacks[bot_ind].append(bot_stack)
+        if self.moving_target:
+            for bot_ind in range(self.n_bots):
+                if self.bots[bot_ind].is_alive:
+                    self.get_bot_des_grid(bot_ind)
+                
+                    if np.linalg.norm(self.bots[bot_ind].state-self.bots[bot_ind].target_state) < 3.5:
+                        target_pos = [self.np_random.uniform(low=-31, high=31), self.np_random.uniform(low=-31, high=31), self.np_random.uniform(low=-12, high=-2)]
+                        self.bots[bot_ind].target_state = target_pos
 
 
         for agent_ind in range(self.n_agents):
             for other_agents_ind in range(self.n_agents):
                 if agent_ind != other_agents_ind:
-                    #collision_state_difference = self.quadrotors[agent_ind].state - self.quadrotors[other_agents_ind].state
-                    #collision_distance = np.sqrt(collision_state_difference[0]**2 + collision_state_difference[1]**2 + collision_state_difference[2]**2)
                     collision_distance = np.linalg.norm(self.quadrotors[agent_ind].state-self.quadrotors[other_agents_ind].state)
 
                     if (collision_distance <= 7) and self.quadrotors[agent_ind].is_alive and self.quadrotors[other_agents_ind].is_alive:
@@ -124,8 +115,6 @@ class QuadrotorFormation(gym.Env):
             
             if not done:
                 for bot_ind in range(self.n_bots):
-                    #state_difference = self.quadrotors[agent_ind].state - self.bots[bot_ind].state
-                    #drone_distance = np.sqrt(state_difference[0]**2 + state_difference[1]**2 + state_difference[2]**2)
                     drone_distance = np.linalg.norm(self.quadrotors[agent_ind].state-self.bots[bot_ind].state)
                     
                     if drone_distance <= 7 and self.bots[bot_ind].is_alive:
@@ -147,50 +136,17 @@ class QuadrotorFormation(gym.Env):
         return self.get_observation(), reward_list/100, done, {}, [self.quadrotors[i].state for i in range(self.n_agents)], [self.bots[j].state for j in range(self.n_bots)]
 
     def get_observation(self):
-        # conv_stack(batch,4,84,84) input_channel = 4
-        # conv_stack(batch,16,84,84) = 5*agent1_pos + 5*agent2_pos + 5*uncertainty_grid + 1*obstacle_grid  
-        # conv_stack(batch,5,4,84,84)
 
-        # In the first 2 stacks, there will be position of agents (closest 4 grids to the agent will be 1, others will be 0)
-        # In the third stack, there will be position of bots
-        """
-        conv_stack1 = np.zeros((self.N_frame*3, self.out_shape, self.out_shape))
-        conv_stack2 = np.zeros((self.N_frame*3, self.out_shape, self.out_shape))
-        obs_stack = np.zeros((self.n_agents, self.N_frame*3, self.out_shape, self.out_shape))
+        state = np.zeros((self.n_agents,self.n_agents*3+self.n_bots*3))
 
-        for frame_ind in range(self.N_frame):
-            # 0, 1, 2, 3, 4
-            conv_stack1[frame_ind,:,:] = np.copy(self.agents_stacks[0][frame_ind])
-
-        for frame_ind in range(self.N_frame):
-            # 0, 1, 2, 3, 4
-            conv_stack2[frame_ind,:,:] = np.copy(self.agents_stacks[1][frame_ind])
-
-        for frame_ind in range(self.N_frame):
-            # 5, 6, 7, 8, 9
-            conv_stack1[self.N_frame+frame_ind,:,:] = np.copy(self.bots_stacks[0][frame_ind])
-            conv_stack2[self.N_frame+frame_ind,:,:] = np.copy(self.bots_stacks[0][frame_ind])
-
-        for frame_ind in range(self.N_frame):
-            # 10, 11, 12, 13, 14
-            conv_stack1[self.N_frame*2+frame_ind,:,:] = np.copy(self.bots_stacks[1][frame_ind])
-            conv_stack2[self.N_frame*2+frame_ind,:,:] = np.copy(self.bots_stacks[1][frame_ind])
-
-        obs_stack[0,:,:,:] = np.copy(conv_stack1)
-        obs_stack[1,:,:,:] = np.copy(conv_stack2)
-        """
-
-        #state1 = [self.quadrotors[0].state[0], self.quadrotors[0].state[1], self.bots[0].state[0], self.bots[0].state[1], self.bots[1].state[0], self.bots[1].state[1]]
-        #state2 = [self.quadrotors[1].state[0], self.quadrotors[1].state[1], self.bots[0].state[0], self.bots[0].state[1], self.bots[1].state[0], self.bots[1].state[1]]
-
-        state = np.zeros((2,(self.n_bots+1)*3))
-
-        for agent_ind in range(self.n_agents): 
+        for agent_ind in range(self.n_agents):
             state[agent_ind][0:3] = self.quadrotors[agent_ind].state * self.quadrotors[agent_ind].is_alive
+            for other_agents_ind in range(self.n_agents):
+                if agent_ind != other_agents_ind:
+                    state[agent_ind][(other_agents_ind*3):(other_agents_ind*3)+3] = self.quadrotors[other_agents_ind].state * self.quadrotors[other_agents_ind].is_alive
+
             for bot_ind in range(self.n_bots):
-                # bot_ind:0 ->> 3,4,5 agent_state - bot1_state
-                # bot_ind:1 ->> 6,7,8 agent_state - bot2 state
-                state[agent_ind][(bot_ind*3)+3:(bot_ind*3)+6] = (self.quadrotors[agent_ind].state - self.bots[bot_ind].state)*self.bots[bot_ind].is_alive
+                state[agent_ind][(self.n_agents*3+bot_ind*3):(self.n_agents*3+bot_ind*3)+3] = (self.quadrotors[agent_ind].state - self.bots[bot_ind].state)*self.bots[bot_ind].is_alive
 
         return np.array(state)
 
@@ -276,6 +232,23 @@ class QuadrotorFormation(gym.Env):
 
         return bot_stack
 
+    def get_bot_des_grid(self, bot_index):
+
+        if self.bots[bot_index].state[0] - self.bots[bot_index].target_state[0] > 2:
+            self.bots[bot_index].state[0] -= 0.3
+        elif self.bots[bot_index].state[0] - self.bots[bot_index].target_state[0] < -2:
+            self.bots[bot_index].state[0] += 0.3
+
+        elif self.bots[bot_index].state[1] - self.bots[bot_index].target_state[1] > 2:
+            self.bots[bot_index].state[1] -= 0.3
+        elif self.bots[bot_index].state[1] - self.bots[bot_index].target_state[1] < -2:
+            self.bots[bot_index].state[1] += 0.3
+
+        elif self.bots[bot_index].state[2] - self.bots[bot_index].target_state[2] > 2:
+            self.bots[bot_index].state[2] -= 0.3
+        elif self.bots[bot_index].state[2] - self.bots[bot_index].target_state[2] < -2:
+            self.bots[bot_index].state[2] += 0.3
+
 
     def get_drone_des_grid(self, drone_index, discrete_action):
 
@@ -293,10 +266,10 @@ class QuadrotorFormation(gym.Env):
             self.quadrotors[drone_index].state[1] = np.clip(self.quadrotors[drone_index].state[1], -self.y_lim,  self.y_lim)
         elif discrete_action == 4: #action=4, z += 1.0
             self.quadrotors[drone_index].state[2] += self.grid_res
-            self.quadrotors[drone_index].state[2] = np.clip(self.quadrotors[drone_index].state[2], -self.z_lim,  0)
+            self.quadrotors[drone_index].state[2] = np.clip(self.quadrotors[drone_index].state[2], -self.z_lim,  -1)
         elif discrete_action == 5: #action=5, z -= 1.0
             self.quadrotors[drone_index].state[2] -= self.grid_res
-            self.quadrotors[drone_index].state[2] = np.clip(self.quadrotors[drone_index].state[2], -self.z_lim,  0)
+            self.quadrotors[drone_index].state[2] = np.clip(self.quadrotors[drone_index].state[2], -self.z_lim,  -1)
         else:
             print ("Invalid discrete action!")
 

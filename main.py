@@ -73,12 +73,12 @@ parser.add_argument('--plot_env', default='main', type=str,
                     help='plot env name')
 
 # Abdullahtan al save kismini
-parser.add_argument('--save', default='./weight/', type=str,
+parser.add_argument('--save', default="True", type=str,
                     help='save the model after training')
 
 parser.add_argument('--save_every', default=100, type=int,
                     help='save the model after every n_th epoch')
-parser.add_argument('--load', default='./weight/', type=str,
+parser.add_argument('--load', default="True", type=str,
                     help='load the model')
 parser.add_argument('--display', action="store_true", default=False,
                     help='Display environment state')
@@ -307,7 +307,7 @@ def run(num_epochs):
                                  win=k, opts=dict(xlabel=v.x_axis, ylabel=k))
 
             if ep % args.save_every == 0 and ep != 0:
-                save(args.save, ep)
+                save()
     elif args.mode == 'Test':
         print('TEST MODE')
         batch = []
@@ -323,171 +323,130 @@ def run(num_epochs):
                 with open('./agents_position/agents_positions_planner.pkl', 'wb') as f:
                     pickle.dump(total_pos_list, f)
 
-            # trainer.display = False
-            # print("Episode:", ep)
+            trainer.display = False
+            print("Episode:", ep)
 
-            # client = airsim.MultirotorClient()
-            # client.confirmConnection()
+            client = airsim.MultirotorClient()
+            client.confirmConnection()
+            client.enableApiControl(True, "Drone1")
+            client.enableApiControl(True, "Drone2")
+            if args.scenario == 'predator':
+                client.enableApiControl(True, "Bot1")
+                client.enableApiControl(True, "Bot2")
+            client.armDisarm(True, "Drone1")
+            client.armDisarm(True, "Drone2")
+            if args.scenario == 'predator':
+                client.armDisarm(True, "Bot1")
+                client.armDisarm(True, "Bot2")
 
-            # client.enableApiControl(True, "Drone1")
-            # client.enableApiControl(True, "Drone2")
-            # #########################
-            # client.enableApiControl(True, "Drone3")
-            # client.enableApiControl(True, "Drone4")
-            # client.enableApiControl(True, "Drone5")
-            # ########################
+            if not takeoff:
+                airsim.wait_key('Press any key to takeoff')
+                f1 = client.takeoffAsync(vehicle_name="Drone1")
+                f2 = client.takeoffAsync(vehicle_name="Drone2")
+                if args.scenario == 'predator':
+                    f3 = client.takeoffAsync(vehicle_name="Bot1")
+                    f4 = client.takeoffAsync(vehicle_name="Bot2")
+                f1.join()
+                f2.join()
+                if args.scenario == 'predator':
+                    f3.join()
+                    f4.join()
+                takeoff = True
 
-            # if args.scenario == 'predator':
-            #     client.enableApiControl(True, "Bot1")
-            #     client.enableApiControl(True, "Bot2")
+            i = 0
+            if args.scenario == 'predator':
+                for agent_p, bot_p in zip(agent_pos, bot_pos):
 
-            # client.armDisarm(True, "Drone1")
-            # client.armDisarm(True, "Drone2")
-            # #########################
-            # client.armDisarm(True, "Drone3")
-            # client.armDisarm(True, "Drone4")
-            # client.armDisarm(True, "Drone5")
-            # #########################
+                    print("Agents",agent_p)
+                    print("Bots",bot_p)
+                    
+                    if i == 0:
+                        airsim.wait_key('Press any key to take initial position')
+                        """
+                        f1 = client.moveToPositionAsync(agent_p[0][0], agent_p[0][1], agent_p[0][2], 5, vehicle_name="Drone1")
+                        f2 = client.moveToPositionAsync(agent_p[1][0], agent_p[1][1], agent_p[1][2], 5, vehicle_name="Drone2")
+                        f3 = client.moveToPositionAsync(bot_p[0][0], bot_p[0][1], bot_p[0][2], 5, vehicle_name="Bot1")
+                        f4 = client.moveToPositionAsync(bot_p[1][0], bot_p[1][1], bot_p[1][2], 5, vehicle_name="Bot2")
+                        """
 
-            # if args.scenario == 'predator':
-            #     client.armDisarm(True, "Bot1")
-            #     client.armDisarm(True, "Bot2")
+                        agent1_pose = client.simGetVehiclePose(vehicle_name="Drone1")
+                        agent2_pose = client.simGetVehiclePose(vehicle_name="Drone2")
+                        bot1_pose = client.simGetVehiclePose(vehicle_name="Bot1")
+                        bot2_pose = client.simGetVehiclePose(vehicle_name="Bot2")
 
-            # if not takeoff:
-            #     airsim.wait_key('Press any key to takeoff')
-            #     f1 = client.takeoffAsync(vehicle_name="Drone1")
-            #     f2 = client.takeoffAsync(vehicle_name="Drone2")
-            #     #########################
-            #     f3 = client.takeoffAsync(vehicle_name="Drone3")
-            #     f4 = client.takeoffAsync(vehicle_name="Drone4")
-            #     f5 = client.takeoffAsync(vehicle_name="Drone5")
-            #     #########################
-            #     if args.scenario == 'predator':
-            #         f3 = client.takeoffAsync(vehicle_name="Bot1")
-            #         f4 = client.takeoffAsync(vehicle_name="Bot2")
-            #     f1.join()
-            #     f2.join()
-            #     #########################
-            #     f3.join()
-            #     f4.join()
-            #     f5.join()
-            #     #########################
-            #     if args.scenario == 'predator':
-            #         f3.join()
-            #         f4.join()
-            #     takeoff = True
+                        agent1_pose.position.x_val = agent_p[0][0]
+                        agent1_pose.position.y_val = agent_p[0][1]
+                        agent1_pose.position.z_val = agent_p[0][2]
 
-            # i = 0
-            # if args.scenario == 'predator':
-            #     for agent_p, bot_p in zip(agent_pos, bot_pos):
+                        agent2_pose.position.x_val = agent_p[1][0]
+                        agent2_pose.position.y_val = agent_p[1][1]
+                        agent2_pose.position.z_val = agent_p[1][2]
 
-            #         print("Agents", agent_p)
-            #         print("Bots", bot_p)
+                        bot1_pose.position.x_val = bot_p[0][0]
+                        bot1_pose.position.y_val = bot_p[0][1]
+                        bot1_pose.position.z_val = bot_p[0][2]
 
-            #         if i == 0:
-            #             airsim.wait_key(
-            #                 'Press any key to take initial position')
-            #             f1 = client.moveToPositionAsync(
-            #                 agent_p[0][0], agent_p[0][1], agent_p[0][2], 5, vehicle_name="Drone1")
-            #             f2 = client.moveToPositionAsync(
-            #                 agent_p[1][0], agent_p[1][1], agent_p[1][2], 5, vehicle_name="Drone2")
-            #             f3 = client.moveToPositionAsync(
-            #                 bot_p[0][0], bot_p[0][1], bot_p[0][2], 5, vehicle_name="Bot1")
-            #             f4 = client.moveToPositionAsync(
-            #                 bot_p[1][0], bot_p[1][1], bot_p[1][2], 5, vehicle_name="Bot2")
-            #             f1.join()
-            #             f2.join()
-            #             f3.join()
-            #             f4.join()
+                        bot2_pose.position.x_val = bot_p[1][0]
+                        bot2_pose.position.y_val = bot_p[1][1]
+                        bot2_pose.position.z_val = bot_p[1][2]
 
-            #         else:
-            #             f1 = client.moveToPositionAsync(
-            #                 agent_p[0][0], agent_p[0][1], agent_p[0][2], 5, vehicle_name="Drone1")
-            #             f2 = client.moveToPositionAsync(
-            #                 agent_p[1][0], agent_p[1][1], agent_p[1][2], 5, vehicle_name="Drone2")
-            #             f3 = client.moveToPositionAsync(
-            #                 bot_p[0][0], bot_p[0][1], bot_p[0][2], 5, vehicle_name="Bot1")
-            #             f4 = client.moveToPositionAsync(
-            #                 bot_p[1][0], bot_p[1][1], bot_p[1][2], 5, vehicle_name="Bot2")
-            #             # f1.join()
-            #             # f2.join()
-            #             # f3.join()
-            #             # f4.join()
-            #             time.sleep(0.2)
-            #         i += 1
+                        client.simSetVehiclePose(agent1_pose, True, vehicle_name="Drone1")
+                        client.simSetVehiclePose(agent2_pose, True, vehicle_name="Drone2")
+                        client.simSetVehiclePose(bot1_pose, True, vehicle_name="Bot1")
+                        client.simSetVehiclePose(bot2_pose, True, vehicle_name="Bot2")
 
-            # elif args.scenario == 'planning':
-            #     for agent_p in zip(agent_pos):
+                        f1.join()
+                        f2.join()
+                        f3.join()
+                        f4.join()
+                        
+                        time.sleep(0.1)
 
-            #         print("Agents", agent_p)
+                    else:
+                        f1 = client.moveToPositionAsync(agent_p[0][0], agent_p[0][1], agent_p[0][2], 3, vehicle_name="Drone1")
+                        f2 = client.moveToPositionAsync(agent_p[1][0], agent_p[1][1], agent_p[1][2], 3, vehicle_name="Drone2")
+                        f3 = client.moveToPositionAsync(bot_p[0][0], bot_p[0][1], bot_p[0][2], 2, vehicle_name="Bot1")
+                        f4 = client.moveToPositionAsync(bot_p[1][0], bot_p[1][1], bot_p[1][2], 2, vehicle_name="Bot2")
+                        time.sleep(0.1)
+                    i += 1
 
-            #         if i == 0:
-            #             airsim.wait_key(
-            #                 'Press any key to take initial position')
-            #             f1 = client.moveToPositionAsync(
-            #                 agent_p[0][0][0], agent_p[0][0][1], -agent_p[0][0][2], 5, vehicle_name="Drone1")
-            #             f2 = client.moveToPositionAsync(
-            #                 agent_p[0][1][0], agent_p[0][1][1], -agent_p[0][1][2], 5, vehicle_name="Drone2")
-            #             #########################
-            #             f3 = client.moveToPositionAsync(
-            #                 agent_p[0][1][0], agent_p[0][1][1], -agent_p[0][1][2], 5, vehicle_name="Drone3")
-            #             f4 = client.moveToPositionAsync(
-            #                 agent_p[0][1][0], agent_p[0][1][1], -agent_p[0][1][2], 5, vehicle_name="Drone4")
-            #             f5 = client.moveToPositionAsync(
-            #                 agent_p[0][1][0], agent_p[0][1][1], -agent_p[0][1][2], 5, vehicle_name="Drone5")
-            #             #########################
-            #             f1.join()
-            #             f2.join()
-            #             #########################
-            #             f3.join()
-            #             f4.join()
-            #             f5.join()
-            #             #########################
+            elif args.scenario == 'planning':
+                for agent_p in zip(agent_pos):
 
-            #         else:
-            #             f1 = client.moveToPositionAsync(
-            #                 agent_p[0][0][0], agent_p[0][0][1], -agent_p[0][0][2], 5, vehicle_name="Drone1")
-            #             f2 = client.moveToPositionAsync(
-            #                 agent_p[0][1][0], agent_p[0][1][1], -agent_p[0][1][2], 5, vehicle_name="Drone2")
-            #             #########################
-            #             f3 = client.moveToPositionAsync(
-            #                 agent_p[0][1][0], agent_p[0][1][1], -agent_p[0][1][2], 5, vehicle_name="Drone3")
-            #             f4 = client.moveToPositionAsync(
-            #                 agent_p[0][1][0], agent_p[0][1][1], -agent_p[0][1][2], 5, vehicle_name="Drone4")
-            #             f5 = client.moveToPositionAsync(
-            #                 agent_p[0][1][0], agent_p[0][1][1], -agent_p[0][1][2], 5, vehicle_name="Drone5")
-            #             #########################
-            #             time.sleep(0.2)
-            #         i += 1
+                    print("Agents",agent_p)
+                    
+                    if i == 0:
+                        airsim.wait_key('Press any key to take initial position')
+                        f1 = client.moveToPositionAsync(agent_p[0][0][0], agent_p[0][0][1], -agent_p[0][0][2], 5, vehicle_name="Drone1")
+                        f2 = client.moveToPositionAsync(agent_p[0][1][0], agent_p[0][1][1], -agent_p[0][1][2], 5, vehicle_name="Drone2")
+                        f1.join()
+                        f2.join()
 
-            # s1 = client.takeoffAsync(vehicle_name="Drone1")
-            # s2 = client.takeoffAsync(vehicle_name="Drone2")
-            # #########################
-            # s3 = client.takeoffAsync(vehicle_name="Drone3")
-            # s4 = client.takeoffAsync(vehicle_name="Drone4")
-            # s5 = client.takeoffAsync(vehicle_name="Drone5")
-            # #########################
-            # if args.scenario == 'predator':
-            #     s3 = client.takeoffAsync(vehicle_name="Bot1")
-            #     s4 = client.takeoffAsync(vehicle_name="Bot2")
-            # s1.join()
-            # s2.join()
-            # #########################
-            # s3.join()
-            # s4.join()
-            # s5.join()
-            # #########################
-            # if args.scenario == 'predator':
-            #     s3.join()
-            #     s4.join()
+                    else:
+                        f1 = client.moveToPositionAsync(agent_p[0][0][0], agent_p[0][0][1], -agent_p[0][0][2], 5, vehicle_name="Drone1")
+                        f2 = client.moveToPositionAsync(agent_p[0][1][0], agent_p[0][1][1], -agent_p[0][1][2], 5, vehicle_name="Drone2")
+                        time.sleep(0.2)
+                    i += 1
+            
+            s1 = client.takeoffAsync(vehicle_name="Drone1")
+            s2 = client.takeoffAsync(vehicle_name="Drone2")
+            if args.scenario == 'predator':
+                s3 = client.takeoffAsync(vehicle_name="Bot1")
+                s4 = client.takeoffAsync(vehicle_name="Bot2")
+            s1.join()
+            s2.join()
+            if args.scenario == 'predator':
+                s3.join()
+                s4.join()
+
+
     else:
         print("Wrong Mode!!!")
 
 
-def save(path, ep):
-    if not os.path.exists(path + args.scenario):
-        os.makedirs(path + args.scenario)
-    file_path = path + args.scenario + "/" + str(ep) + ".pt"
+def save():
+    current_dir =  os.path.abspath(os.path.dirname(__file__))
+    file_path = current_dir + "/weight" + "/" + args.scenario + ".pt"
     d = dict()
     d['policy_net'] = policy_net.state_dict()
     d['log'] = log
@@ -496,15 +455,15 @@ def save(path, ep):
     print("model saved")
 
 
-def load(path):
-    if not os.path.exists(path + args.scenario):
-        print("Cant find saved weights!!!")
-    file_path = path + args.scenario + "/planning.pt"
+def load():
+    current_dir =  os.path.abspath(os.path.dirname(__file__))
+    file_path = current_dir + "/weight" + "/" + args.scenario + ".pt"
+
     d = torch.load(file_path)
-    # log.clear()
     policy_net.load_state_dict(d['policy_net'])
     log.update(d['log'])
     trainer.load_state_dict(d['trainer'])
+    print("Weights loaded")
 
 
 def signal_handler(signal, frame):
@@ -516,17 +475,14 @@ def signal_handler(signal, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-if args.load != '' and args.test:
-    # if args.load != '':
-    load(args.load)
+if args.load == "True" or args.test:
+    load()
 
 
 run(args.num_epochs)
 if args.display:
     env.end_display()
 
-# if args.save != '':
-#     save(args.save, 'last')
 
 if sys.flags.interactive == 0 and args.nprocesses > 1:
     trainer.quit()
