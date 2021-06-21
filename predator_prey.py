@@ -75,6 +75,7 @@ class QuadrotorFormation(gym.Env):
         return [seed]
 
     def step(self, action, iteration, is_centralized):
+        # Environment Step
         self.iteration = iteration
         done = False
         reward_list = np.ones(self.n_agents) * (-2)

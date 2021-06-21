@@ -35,7 +35,7 @@ parser.add_argument('--epoch_size', type=int, default=10,
                     help='number of update iterations in an epoch')
 parser.add_argument('--batch_size', type=int, default=500,
                     help='number of steps before each update (per thread)')
-parser.add_argument('--nprocesses', type=int, default=16,
+parser.add_argument('--nprocesses', type=int, default=1,
                     help='How many processes to run')
 # model
 parser.add_argument('--hid_size', default=128, type=int,
@@ -78,7 +78,7 @@ parser.add_argument('--save', default="True", type=str,
 
 parser.add_argument('--save_every', default=100, type=int,
                     help='save the model after every n_th epoch')
-parser.add_argument('--load', default="True", type=str,
+parser.add_argument('--load', default="False", type=str,
                     help='load the model')
 parser.add_argument('--display', action="store_true", default=False,
                     help='Display environment state')
