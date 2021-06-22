@@ -92,6 +92,8 @@ parser.add_argument('--ic3net', action='store_true', default=False,
                     help="enable commnet model")
 parser.add_argument('--nagents', type=int, default=1,
                     help="Number of agents (used in multiagent)")
+parser.add_argument('--nbots', type=int, default=2,
+                    help="Number of bots (used in multiagent)")
 parser.add_argument('--comm_mode', type=str, default='avg',
                     help="Type of mode for communication tensor calculation [avg|sum]")
 parser.add_argument('--comm_passes', type=int, default=1,
@@ -158,7 +160,7 @@ js_modifier = Json_Editor(args.nagents)
 
 if args.scenario == 'predator':
     from predator_prey import QuadrotorFormation
-    env = QuadrotorFormation()
+    env = QuadrotorFormation(n_agents=args.nagents, n_bots=args.nbots)
     #Set Up JSON file for AirSim
     js_modifier = Json_Editor(2*args.nagents)
     js_modifier.modify()
@@ -357,8 +359,8 @@ def run(num_epochs):
             if args.scenario == 'predator':
                 for agent_p, bot_p in zip(agent_pos, bot_pos):
 
-                    print("Agents",agent_p)
-                    print("Bots",bot_p)
+                    #print("Agents",agent_p)
+                    #print("Bots",bot_p)
                     
                     if i == 0:
                         airsim.wait_key('Press any key to take initial position')

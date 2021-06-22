@@ -36,13 +36,15 @@ class CommNetMLP(nn.Module):
         super(CommNetMLP, self).__init__()
         self.args = args
         self.nagents = args.nagents
+        self.nbots = args.nbots
         self.hid_size = args.hid_size
         self.comm_passes = args.comm_passes
         self.recurrent = args.recurrent
         self.encoder2_hid_size = 20
         #self.num_inputs = 294
         if self.args.scenario == 'predator':
-            self.num_inputs = 12
+            #self.num_inputs = 12
+            self.num_inputs = (self.nagents+self.nbots)*3
         elif self.args.scenario == 'planning':
             self.num_inputs = 6*7*7
         self.encoder_out = self.encoder2_hid_size + self.nagents*3 + 1

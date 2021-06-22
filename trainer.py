@@ -36,7 +36,7 @@ class Trainer(object):
             state, uncertainty_map = total_obs
 
         elif self.args.scenario == 'predator':
-            state = self.env.reset()
+            state = self.env.reset()           
 
         prev_hid = torch.zeros(1, self.args.nagents, self.args.hid_size)
 
@@ -63,7 +63,7 @@ class Trainer(object):
             if self.args.recurrent:
                 if self.args.rnn_type == 'LSTM' and t == 0:
                     prev_hid = self.policy_net.init_hidden(batch_size=1)
-
+                
                 x = [state, prev_hid]
                 if self.args.scenario == 'predator':
                     action_out, value, prev_hid = self.policy_net(
