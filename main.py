@@ -102,7 +102,7 @@ parser.add_argument('--mean_ratio', default=1.0, type=float,
                     help='how much coooperative to do? 1.0 means fully cooperative')
 parser.add_argument('--rnn_type', default='MLP', type=str,
                     help='type of rnn to use. [LSTM|MLP]')
-parser.add_argument('--detach_gap', default=10000, type=int,
+parser.add_argument('--detach_gap', default=10, type=int,
                     help='detach hidden state and cell state for rnns at this interval.'
                     + ' Default 10000 (very high)')
 parser.add_argument('--comm_init', default='uniform', type=str,
