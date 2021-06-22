@@ -333,21 +333,27 @@ def run(num_epochs):
             client.enableApiControl(True, "Drone1")
             client.enableApiControl(True, "Drone2")
             if args.scenario == 'predator':
-                client.enableApiControl(True, "Bot1")
-                client.enableApiControl(True, "Bot2")
+                #client.enableApiControl(True, "Bot1")
+                #client.enableApiControl(True, "Bot2")
+                client.enableApiControl(True, "Drone3")
+                client.enableApiControl(True, "Drone4")
             client.armDisarm(True, "Drone1")
             client.armDisarm(True, "Drone2")
             if args.scenario == 'predator':
-                client.armDisarm(True, "Bot1")
-                client.armDisarm(True, "Bot2")
+                #client.armDisarm(True, "Bot1")
+                #client.armDisarm(True, "Bot2")
+                client.armDisarm(True, "Drone3")
+                client.armDisarm(True, "Drone4")
 
             if not takeoff:
                 airsim.wait_key('Press any key to takeoff')
                 f1 = client.takeoffAsync(vehicle_name="Drone1")
                 f2 = client.takeoffAsync(vehicle_name="Drone2")
                 if args.scenario == 'predator':
-                    f3 = client.takeoffAsync(vehicle_name="Bot1")
-                    f4 = client.takeoffAsync(vehicle_name="Bot2")
+                    #f3 = client.takeoffAsync(vehicle_name="Bot1")
+                    #f4 = client.takeoffAsync(vehicle_name="Bot2")
+                    f3 = client.takeoffAsync(vehicle_name="Drone3")
+                    f4 = client.takeoffAsync(vehicle_name="Drone4")
                 f1.join()
                 f2.join()
                 if args.scenario == 'predator':
@@ -373,8 +379,10 @@ def run(num_epochs):
 
                         agent1_pose = client.simGetVehiclePose(vehicle_name="Drone1")
                         agent2_pose = client.simGetVehiclePose(vehicle_name="Drone2")
-                        bot1_pose = client.simGetVehiclePose(vehicle_name="Bot1")
-                        bot2_pose = client.simGetVehiclePose(vehicle_name="Bot2")
+                        #bot1_pose = client.simGetVehiclePose(vehicle_name="Bot1")
+                        #bot2_pose = client.simGetVehiclePose(vehicle_name="Bot2")
+                        bot1_pose = client.simGetVehiclePose(vehicle_name="Drone3")
+                        bot2_pose = client.simGetVehiclePose(vehicle_name="Drone4")
 
                         agent1_pose.position.x_val = agent_p[0][0]
                         agent1_pose.position.y_val = agent_p[0][1]
@@ -394,8 +402,10 @@ def run(num_epochs):
 
                         client.simSetVehiclePose(agent1_pose, True, vehicle_name="Drone1")
                         client.simSetVehiclePose(agent2_pose, True, vehicle_name="Drone2")
-                        client.simSetVehiclePose(bot1_pose, True, vehicle_name="Bot1")
-                        client.simSetVehiclePose(bot2_pose, True, vehicle_name="Bot2")
+                        #client.simSetVehiclePose(bot1_pose, True, vehicle_name="Bot1")
+                        #client.simSetVehiclePose(bot2_pose, True, vehicle_name="Bot2")
+                        client.simSetVehiclePose(bot1_pose, True, vehicle_name="Drone3")
+                        client.simSetVehiclePose(bot2_pose, True, vehicle_name="Drone4")
 
                         f1.join()
                         f2.join()
@@ -407,8 +417,10 @@ def run(num_epochs):
                     else:
                         f1 = client.moveToPositionAsync(agent_p[0][0], agent_p[0][1], agent_p[0][2], 3, vehicle_name="Drone1")
                         f2 = client.moveToPositionAsync(agent_p[1][0], agent_p[1][1], agent_p[1][2], 3, vehicle_name="Drone2")
-                        f3 = client.moveToPositionAsync(bot_p[0][0], bot_p[0][1], bot_p[0][2], 2, vehicle_name="Bot1")
-                        f4 = client.moveToPositionAsync(bot_p[1][0], bot_p[1][1], bot_p[1][2], 2, vehicle_name="Bot2")
+                        #f3 = client.moveToPositionAsync(bot_p[0][0], bot_p[0][1], bot_p[0][2], 2, vehicle_name="Bot1")
+                        #f4 = client.moveToPositionAsync(bot_p[1][0], bot_p[1][1], bot_p[1][2], 2, vehicle_name="Bot2")
+                        f3 = client.moveToPositionAsync(bot_p[0][0], bot_p[0][1], bot_p[0][2], 2, vehicle_name="Drone3")
+                        f4 = client.moveToPositionAsync(bot_p[1][0], bot_p[1][1], bot_p[1][2], 2, vehicle_name="Drone4")
                         time.sleep(0.1)
                     i += 1
 
@@ -433,8 +445,10 @@ def run(num_epochs):
             s1 = client.takeoffAsync(vehicle_name="Drone1")
             s2 = client.takeoffAsync(vehicle_name="Drone2")
             if args.scenario == 'predator':
-                s3 = client.takeoffAsync(vehicle_name="Bot1")
-                s4 = client.takeoffAsync(vehicle_name="Bot2")
+                #s3 = client.takeoffAsync(vehicle_name="Bot1")
+                #s4 = client.takeoffAsync(vehicle_name="Bot2")
+                s3 = client.takeoffAsync(vehicle_name="Drone3")
+                s4 = client.takeoffAsync(vehicle_name="Drone4")
             s1.join()
             s2.join()
             if args.scenario == 'predator':
