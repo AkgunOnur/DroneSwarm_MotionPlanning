@@ -477,7 +477,7 @@ def signal_handler(signal, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-if args.load == "True" or args.test:
+if args.load == "True" or args.mode == "Test":
     load()
 
 
