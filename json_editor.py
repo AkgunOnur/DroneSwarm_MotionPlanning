@@ -2,6 +2,7 @@ import os
 import json
 import numpy as np
 import shutil
+import argparse
 
 class Json_Editor():
     def __init__(self, nagent):
@@ -45,8 +46,18 @@ class Json_Editor():
 
 
 
-# if __name__ == "__main__":
-#     nagent = 3
-#     js_modifier = Airsim_Json(nagent)
-#     js_modifier.modify()
-#     
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='Json Modifier')
+
+    parser.add_argument('--nagents', type=int, default=5,
+                    help="Number of agents (used in multiagent)")
+    parser.add_argument('--nbots', type=int, default=0,
+                        help="Number of bots (used in multiagent)")
+
+    args = parser.parse_args()
+
+    nagent = args.nagents+args.nbots
+    js_modifier = Json_Editor(nagent)
+    js_modifier.modify()
+    
