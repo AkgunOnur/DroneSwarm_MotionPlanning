@@ -57,11 +57,11 @@ class Reporter:
             average_val = 100 * visited_grids / len(grid_visits)
             average_val_list.append(average_val)
             print("Episode: {0} Map coverage: {1:.4}".format(
-                episode, 2*average_val))
+                episode, average_val))
 
         print("=====================================================")
         print("=====================================================")
-        print("Average map coverage: ", 2*np.mean(average_val_list))
+        print("Average map coverage: ", np.mean(average_val_list))
         print("Std map coverage: ", np.std(average_val_list))
         print("=====================================================")
         print("=====================================================")
