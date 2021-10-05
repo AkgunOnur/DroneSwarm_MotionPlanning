@@ -2,7 +2,7 @@ import sys
 import time
 import signal
 import argparse
-import airsim
+#import airsim
 import pprint
 
 import numpy as np
@@ -363,29 +363,29 @@ def run(num_epochs):
             #             fb.join()
             #     takeoff = True
 
-            # i = 0
-            # if args.scenario == 'predator':
-            #     for agent_p, bot_p in zip(agent_pos, bot_pos):
+            i = 0
+            if args.scenario == 'predator':
+                for agent_p, bot_p in zip(agent_pos, bot_pos):
 
-            #         if i == 0:
-            #             airsim.wait_key('Press any key to take initial position')
+                    if i == 0:
+                        airsim.wait_key('Press any key to take initial position')
 
-            #             for drn in agents_list:
-            #                 client.moveToPositionAsync(agent_p[drn][0], agent_p[drn][1], agent_p[drn][2], 6, vehicle_name=f"Drone{drn+1}")
-            #             for bt in bots_list:
-            #                 client.moveToPositionAsync(bot_p[bt][0], bot_p[bt][1], bot_p[bt][2], 6, vehicle_name=f"Drone{args.nagents+bt+1}")
+                        for drn in agents_list:
+                            client.moveToPositionAsync(agent_p[drn][0], agent_p[drn][1], agent_p[drn][2], 6, vehicle_name=f"Drone{drn+1}")
+                        for bt in bots_list:
+                            client.moveToPositionAsync(bot_p[bt][0], bot_p[bt][1], bot_p[bt][2], 6, vehicle_name=f"Drone{args.nagents+bt+1}")
 
-            #             airsim.wait_key('Press any key to start')
-            #             time.sleep(0.1)
+                        airsim.wait_key('Press any key to start')
+                        time.sleep(0.1)
 
-            #         else:
-            #             for drn in agents_list:
-            #                 client.moveToPositionAsync(agent_p[drn][0], agent_p[drn][1], agent_p[drn][2], 3, vehicle_name=f"Drone{drn+1}")
-            #             for bt in bots_list:
-            #                 client.moveToPositionAsync(bot_p[bt][0], bot_p[bt][1], bot_p[bt][2], 2, vehicle_name=f"Drone{args.nagents+bt+1}")
+                    else:
+                        for drn in agents_list:
+                            client.moveToPositionAsync(agent_p[drn][0], agent_p[drn][1], agent_p[drn][2], 3, vehicle_name=f"Drone{drn+1}")
+                        for bt in bots_list:
+                            client.moveToPositionAsync(bot_p[bt][0], bot_p[bt][1], bot_p[bt][2], 2, vehicle_name=f"Drone{args.nagents+bt+1}")
 
-            #             time.sleep(0.1)
-            #         i += 1
+                        time.sleep(0.1)
+                    i += 1
 
             # elif args.scenario == 'planning':
             #     f_list = []

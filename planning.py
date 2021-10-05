@@ -131,8 +131,8 @@ class QuadrotorFormation(gym.Env):
         # print ("\n")
 
         #increase the map uncertainty
-        self.uncertainty_values[self.no_obstacle_indices] = np.clip(
-                    self.uncertainty_values[self.no_obstacle_indices] + uncertainty_constant, 1e-6, 1.0)
+        # self.uncertainty_values[self.no_obstacle_indices] = np.clip(
+        #             self.uncertainty_values[self.no_obstacle_indices] + uncertainty_constant, 1e-6, 1.0)
 
         # print ("Agent status: ", self.agent_status)
 
@@ -207,8 +207,8 @@ class QuadrotorFormation(gym.Env):
                 to_be_updated_indices = np.setdiff1d(to_be_updated_indices, self.battery_indices) # battery indices are excluded
 
                 self.grid_visits[to_be_updated_indices] += 1
-                # self.uncertainty_values[to_be_updated_indices] = np.clip(
-                #     np.exp(-self.grid_visits[to_be_updated_indices]/3), 1e-6, 1.0)
+                self.uncertainty_values[to_be_updated_indices] = np.clip(
+                    np.exp(-self.grid_visits[to_be_updated_indices]/3), 1e-6, 1.0)
 
                 low_uncertainty_indices = np.where(self.uncertainty_values < uncertainty_limit)[0]
             
