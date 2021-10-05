@@ -4,16 +4,19 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 import pickle
 
-def animate(num, x, y, z, line, n_agents, bot_p, redDots):
+def animate(num, x, y, z, line, n_agents, n_bots, bot_p, redDots, ax):
+
+    if num == 0:
+        for n_b in range(n_bots):
+            redDots[n_b] = ax.scatter3D(bot_p[0][n_b][0], bot_p[0][n_b][1], bot_p[0][n_b][2], lw=14, c='r')
 
     for n_a in range(n_agents):
         line[n_a].set_data(np.array([x[n_a][:num], y[n_a][:num]]))    
         line[n_a].set_3d_properties(z[n_a][:num])
 
-    print(bot_p)
-    for n_b in range(bot_p):
-        pass
-        # if bot_p[n_b]
+    for n_b in range(n_bots):
+        if bot_p[num][n_b][2] == 0:
+            redDots[n_b] = ax.scatter3D(bot_p[0][n_b][0], bot_p[0][n_b][1], bot_p[0][n_b][2], lw=14, c='grey')
 
     return line
 
@@ -47,8 +50,8 @@ def plot_trajectory(agent_p, bot_p, n_agents, n_bots):
     for n_a in range(n_agents):
         line[n_a] = plt.plot(xdata[n_a], ydata[n_a], zdata[n_a], lw=2, c=color_list[n_a])[0]
         
-    ax.set_xlim((-31, 31))
-    ax.set_ylim((-31, 31))
+    ax.set_xlim((-51, 51))
+    ax.set_ylim((-51, 51))
     ax.set_zlim((-15, 15))
 
     ax.set_xlabel('X - Axis')
@@ -56,7 +59,7 @@ def plot_trajectory(agent_p, bot_p, n_agents, n_bots):
     ax.set_zlabel('Z - Axis')
     ax.set_title('Trajectory of agents')
     
-    line_ani = animation.FuncAnimation(fig, animate, frames=numDataPoints, fargs=(xdata, ydata, zdata, line, n_agents, bot_p, redDots), interval=50, blit=False)
+    line_ani = animation.FuncAnimation(fig, animate, frames=numDataPoints, fargs=(xdata, ydata, zdata, line, n_agents, n_bots, bot_p, redDots, ax), interval=30, blit=False)
 
     plt.show()
     
