@@ -2,7 +2,7 @@ import sys
 import time
 import signal
 import argparse
-#import airsim
+import airsim
 import pprint
 
 import numpy as np
@@ -314,6 +314,8 @@ def run(num_epochs):
         print('TEST MODE')
         batch = []
         total_pos_list = []
+        agent_pos_list = []
+        bot_pos_list = []
 
         agents_list = [agent for agent in range(args.nagents)]
         bots_list = [bot for bot in range(args.nbots)]
@@ -323,46 +325,56 @@ def run(num_epochs):
 
             if args.scenario == 'predator':
                 _, agent_pos, bot_pos = trainer.test_batch(ep)
+
+                agent_pos_list.append(agent_pos)
+                bot_pos_list.append(bot_pos)
+                with open('./agents_position/agents_positions.pkl', 'wb') as f:
+                    pickle.dump(agent_pos_list, f)
+                with open('./agents_position/bots_positions.pkl', 'wb') as f:
+                    pickle.dump(bot_pos_list, f)
+                
             elif args.scenario == 'planning':
                 _, agent_pos = trainer.test_batch(ep)
                 total_pos_list.append(agent_pos)
                 with open('./agents_position/agents_positions_planner.pkl', 'wb') as f:
                     pickle.dump(total_pos_list, f)
 
-            # trainer.display = False
-            # print("Episode:", ep)
+            trainer.display = False
+            print("Episode:", ep)
 
-            # client = airsim.MultirotorClient()
-            # client.confirmConnection()
+            client = airsim.MultirotorClient()
+            client.confirmConnection()
 
-            # for drn in agents_list:
-            #     client.enableApiControl(True, f"Drone{drn+1}")
-            # if args.scenario == 'predator':
-            #     for bt in bots_list:
-            #         client.enableApiControl(True, f"Drone{args.nagents+bt+1}")
+            for drn in agents_list:
+                client.enableApiControl(True, f"Drone{drn+1}")
+            if args.scenario == 'predator':
+                for bt in bots_list:
+                    client.enableApiControl(True, f"Drone{args.nagents+bt+1}")
 
-            # for drn in agents_list:  
-            #     client.armDisarm(True, f"Drone{drn+1}")    
-            # if args.scenario == 'predator':
-            #     for bt in bots_list:
-            #         client.armDisarm(True, f"Drone{bt+1}")
+            for drn in agents_list:  
+                client.armDisarm(True, f"Drone{drn+1}")    
+            if args.scenario == 'predator':
+                for bt in bots_list:
+                    client.armDisarm(True, f"Drone{bt+1}")
 
-            # if not takeoff:
-            #     airsim.wait_key('Press any key to takeoff')
-            #     f_list = []
-            #     for drn in agents_list:
-            #         f_list.append(client.takeoffAsync(vehicle_name=f"Drone{drn+1}"))
-            #     if args.scenario == 'predator':
-            #         fb_list = []
-            #         for bt in bots_list:
-            #             fb_list.append(client.takeoffAsync(vehicle_name=f"Drone{args.nagents+bt+1}"))
-            #     for fx in f_list:
-            #         fx.join()
-            #     if args.scenario == 'predator':
-            #         for fb in fb_list:
-            #             fb.join()
-            #     takeoff = True
+            if not takeoff:
+                airsim.wait_key('Press any key to takeoff')
+                f_list = []
+                for drn in agents_list:
+                    f_list.append(client.takeoffAsync(vehicle_name=f"Drone{drn+1}"))
+                if args.scenario == 'predator':
+                    fb_list = []
+                    for bt in bots_list:
+                        fb_list.append(client.takeoffAsync(vehicle_name=f"Drone{args.nagents+bt+1}"))
+                for fx in f_list:
+                    fx.join()
+                if args.scenario == 'predator':
+                    for fb in fb_list:
+                        fb.join()
+                takeoff = True
 
+
+            
             i = 0
             if args.scenario == 'predator':
                 for agent_p, bot_p in zip(agent_pos, bot_pos):
@@ -386,6 +398,7 @@ def run(num_epochs):
 
                         time.sleep(0.1)
                     i += 1
+                
 
             # elif args.scenario == 'planning':
             #     f_list = []
@@ -406,14 +419,14 @@ def run(num_epochs):
             #             time.sleep(0.1)
             #         i += 1
                 
-                print("TEST RESULTS")
-                reporter = Reporter()
-                file_list = glob.glob('./agents_position/*.pkl')
-                for i, file in enumerate(file_list):
-                    print("{0}/{1} file {2} is loaded! \n".format(i +
-                                                                1, len(file_list), file))
-                    pkl_name = os.path.split(os.path.splitext(file)[0])[1] + '.pkl'
-                    reporter.get_map_coverage(pkl_name)
+                # print("TEST RESULTS")
+                # reporter = Reporter()
+                # file_list = glob.glob('./agents_position/*.pkl')
+                # for i, file in enumerate(file_list):
+                #     print("{0}/{1} file {2} is loaded! \n".format(i +
+                #                                                 1, len(file_list), file))
+                #     pkl_name = os.path.split(os.path.splitext(file)[0])[1] + '.pkl'
+                #     reporter.get_map_coverage(pkl_name)
                 
             
             # s_list = []
@@ -430,7 +443,6 @@ def run(num_epochs):
             # if args.scenario == 'predator':
             #     for sbx in b_list:
             #         sbx.join()
-
 
     else:
         print("Wrong Mode!!!")
