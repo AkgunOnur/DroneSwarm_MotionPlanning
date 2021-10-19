@@ -170,16 +170,18 @@ class Trainer(object):
                                episode_mask, episode_mini_mask, next_state, reward, misc)
             episode.append(trans)
             state = next_state
-            surveillance_rate_list.append(surveillance_rate)
+
+            if self.args.scenario == 'planning':
+                surveillance_rate_list.append(surveillance_rate)
             
-            if t % 1 == 0:
-                # Initial call to print 0% progress
-                printProgressBar(100*surveillance_rate, 100, prefix = 'Episode ' + str(epoch) + ": ", suffix = 'Surveillance Rate', length = 50)
-                # for i, item in enumerate(items):
-                #     # Do stuff...
-                #     time.sleep(0.1)
-                #     # Update Progress Bar
-                #     printProgressBar(i + 1, l, prefix = 'Progress:', suffix = 'Complete', length = 50)
+                if t % 1 == 0:
+                    # Initial call to print 0% progress
+                    printProgressBar(100*surveillance_rate, 100, prefix = 'Episode ' + str(epoch) + ": ", suffix = 'Surveillance Rate', length = 50)
+                    # for i, item in enumerate(items):
+                    #     # Do stuff...
+                    #     time.sleep(0.1)
+                    #     # Update Progress Bar
+                    #     printProgressBar(i + 1, l, prefix = 'Progress:', suffix = 'Complete', length = 50)
 
             
 
@@ -352,7 +354,7 @@ class Trainer(object):
             return batch, self.stats, agent_pos, bot_pos
 
         elif self.args.scenario == 'planning':
-            _, agent_pos = self.get_episode(epoch)
+            _, agent_pos, mean_surv_rate = self.get_episode(epoch)
             self.stats['num_episodes'] += 1
             return batch, self.stats, agent_pos
         # print(bot_pos_list)
