@@ -1,3 +1,4 @@
+from matplotlib import transforms
 import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
@@ -7,7 +8,7 @@ import pickle
 def plot_trajectory(agent_p, agent_list):
     n_agents = 5# len(agent_list)
     numDataPoints = len(agent_p)
-
+    global ax
     fig = plt.figure()
     ax = Axes3D(fig)
     
@@ -35,7 +36,9 @@ def plot_trajectory(agent_p, agent_list):
     ax.set_xlim((-20, 20))
     ax.set_ylim((-20, 20))
     ax.set_zlim((0, 6))
+    
 
+    
     ax.set_xlabel('X - Axis')
     ax.set_ylabel('Y - Axis')
     ax.set_zlabel('Z - Axis')
@@ -46,11 +49,18 @@ def plot_trajectory(agent_p, agent_list):
     plt.show()
 
 def animate(num, x, y, z, line, n_agents):
+    legend = plt.legend()
+    ttl = ax.text(x=0, y=0, z=50, s='Trajectory of agents', transform=ax.transAxes, va='center')
+    # ttl.set_text('Trajectory of agents')
     for n_a in range(n_agents):
         line[n_a].set_data(np.array([x[n_a][:num], y[n_a][:num]]))    
+        line[n_a].set_label('Agent %d' %(n_a+1))    
         line[n_a].set_3d_properties(z[n_a][:num])    
+    
+    legend.remove()
+    legend = plt.legend()
 
-    return line
+    return line + [legend], ttl
     
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ import sys
 import time
 import signal
 import argparse
-import airsim
+# import airsim
 import pprint
 
 import numpy as np
@@ -33,10 +33,18 @@ parser.add_argument('--num_epochs', default=2000, type=int,
                     help='number of training epochs')
 parser.add_argument('--epoch_size', type=int, default=1,
                     help='number of update iterations in an epoch')
-parser.add_argument('--batch_size', type=int, default=500,
+parser.add_argument('--max_steps', default=1000, type=int,
+                    help='force to end the game after this many steps')
+parser.add_argument('--batch_size', type=int, default=200,
                     help='number of steps before each update (per thread)')
 parser.add_argument('--nprocesses', type=int, default=1,
                     help='How many processes to run')
+parser.add_argument('--train_thresh', type=float, default=0.3,
+                    help='train threshold to stop the training')
+parser.add_argument('--last_n_episode', type=int, default=10,
+                    help='Last n episodes to check if training should be stopped')
+parser.add_argument('--min_episode', type=int, default=500,
+                    help='After min episodes to check if training should be stopped')
 # model
 parser.add_argument('--hid_size', default=128, type=int,
                     help='hidden layer size')
@@ -60,8 +68,6 @@ parser.add_argument('--value_coeff', type=float, default=0.01,
 # environment
 parser.add_argument('--env_name', default="Cartpole",
                     help='name of the environment to run')
-parser.add_argument('--max_steps', default=500, type=int,
-                    help='force to end the game after this many steps')
 parser.add_argument('--nactions', default='1', type=str,
                     help='the number of agent actions (0 for continuous). Use N:M:K for multiple actions')
 parser.add_argument('--action_scale', default=1.0, type=float,
@@ -120,7 +126,9 @@ parser.add_argument('--share_weights', default=False, action='store_true',
 parser.add_argument('--test', default=False, type=bool,
                     help='Train or Test')
 parser.add_argument('--mode', default="Train", type=str,
-                    help='Train or Test')                    
+                    help='Train or Test')   
+parser.add_argument('--test-model', default="weight/planning.pt", type=str,
+                    help='Model to test')    
 parser.add_argument('--scenario', type=str, default='planning',
                     help='predator or planning ')
 parser.add_argument('--airsim_vis', type=bool, default=False,
@@ -262,6 +270,7 @@ if args.plot:
     vis = visdom.Visdom(env=args.plot_env)
 
 def run(num_epochs):
+    episode_surv_rates = []
 
     takeoff = False
     if args.mode=='Train':
@@ -272,7 +281,8 @@ def run(num_epochs):
             for n in range(args.epoch_size):
                 if n == args.epoch_size - 1 and args.display:
                     trainer.display = True
-                s = trainer.train_batch(ep)
+                s, mean_surv_rate = trainer.train_batch(ep)
+                episode_surv_rates.append(mean_surv_rate)
                 merge_stat(s, stat)
                 trainer.display = False
 
@@ -288,8 +298,8 @@ def run(num_epochs):
 
             np.set_printoptions(precision=2)
 
-            print('Epoch {}\tReward {}\tTime {:.2f}s'.format(
-                epoch, stat['reward'], epoch_time
+            print('\n \tReward: {}\tTime {:.2f}s \n'.format(
+                stat['reward'], epoch_time
             ))
 
             if 'enemy_reward' in stat.keys():
@@ -298,12 +308,19 @@ def run(num_epochs):
                 print('Add-Rate: {:.2f}'.format(stat['add_rate']))
             if 'success' in stat.keys():
                 print('Success: {:.2f}'.format(stat['success']))
-            if 'steps_taken' in stat.keys():
-                print('Steps-taken: {:.2f}'.format(stat['steps_taken']))
-            if 'comm_action' in stat.keys():
-                print('Comm-Action: {}'.format(stat['comm_action']))
+            # if 'steps_taken' in stat.keys():
+            #     print('Steps-taken: {:.2f}'.format(stat['steps_taken']))
+            # if 'comm_action' in stat.keys():
+            #     print('Comm-Action: {}'.format(stat['comm_action']))
             if 'enemy_comm' in stat.keys():
                 print('Enemy-Comm: {}'.format(stat['enemy_comm']))
+
+            
+            if np.mean(episode_surv_rates[-args.last_n_episode:]) < args.train_thresh and len(episode_surv_rates) >= args.min_episode :
+                print ("Mean Surveillance of last 5 episodes: {0:.3}. Too low surveillance rate! Exit!".format(np.mean(episode_surv_rates[-args.last_n_episode:])))
+                if visualization:
+                    env.close()
+                break
 
             if args.plot:
                 for k, v in log.items():
@@ -463,9 +480,10 @@ def save(ep):
     print("model saved")
 
 
-def load():
+def load(test_model):
     current_dir =  os.path.abspath(os.path.dirname(__file__))
-    file_path = current_dir + "/weight" + "/" + args.scenario + ".pt"
+    # file_path = current_dir + "/weight" + "/" + args.scenario + ".pt"
+    file_path = current_dir + "/" + test_model
 
     d = torch.load(file_path)
     policy_net.load_state_dict(d['policy_net'])
@@ -484,7 +502,7 @@ def signal_handler(signal, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 if args.load == "True" or args.mode == "Test":
-    load()
+    load(args.test_model)
 
 
 run(args.num_epochs)

@@ -6,9 +6,32 @@ from torch import optim
 import torch.nn as nn
 from utils import *
 from action_utils import *
+import time
 
 Transition = namedtuple('Transition', ('state', 'action', 'action_out', 'value', 'episode_mask', 'episode_mini_mask', 'next_state',
                                        'reward', 'misc'))
+
+
+def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+        printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
+    """
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledLength = int(length * iteration // total)
+    bar = fill * filledLength + '-' * (length - filledLength)
+    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = printEnd)
+    # Print New Line on Complete
+    if iteration == total: 
+        print()
 
 
 class Trainer(object):
@@ -30,6 +53,9 @@ class Trainer(object):
         stat = dict()
         info = dict()
         switch_t = -1
+
+        surveillance_rate_list = []
+        episode_rate_list = []
 
         if self.args.scenario == 'planning':
             total_obs, info = self.env.reset()
@@ -95,7 +121,7 @@ class Trainer(object):
             elif self.args.scenario == 'planning':
                 action = select_action(self.args, action_out)
                 action, actual = translate_action(self.args, self.env, action)
-                total_obs, reward, done, info, agent_pos = self.env.step(
+                total_obs, reward, done, info, agent_pos, surveillance_rate = self.env.step(
                     action[0], t, self.is_centralized)
                 next_state, uncertainty_map = total_obs
 
@@ -144,6 +170,19 @@ class Trainer(object):
                                episode_mask, episode_mini_mask, next_state, reward, misc)
             episode.append(trans)
             state = next_state
+            surveillance_rate_list.append(surveillance_rate)
+            
+            if t % 1 == 0:
+                # Initial call to print 0% progress
+                printProgressBar(100*surveillance_rate, 100, prefix = 'Episode ' + str(epoch) + ": ", suffix = 'Surveillance Rate', length = 50)
+                # for i, item in enumerate(items):
+                #     # Do stuff...
+                #     time.sleep(0.1)
+                #     # Update Progress Bar
+                #     printProgressBar(i + 1, l, prefix = 'Progress:', suffix = 'Complete', length = 50)
+
+            
+
             if done:
                 break
         stat['num_steps'] = t + 1
@@ -171,7 +210,7 @@ class Trainer(object):
         if self.args.scenario == 'predator':
             return (episode, stat), agent_pos_list, bot_pos_list
         elif self.args.scenario == 'planning':
-            return (episode, stat), agent_pos_list
+            return (episode, stat), agent_pos_list, np.mean(surveillance_rate_list)
 
     def compute_grad(self, batch):
         stat = dict()
@@ -291,7 +330,7 @@ class Trainer(object):
             if self.args.scenario == 'predator':
                 epx, agent_pos_list, bot_pos_list = self.get_episode(epoch)
             elif self.args.scenario == 'planning':
-                epx, agent_pos_list = self.get_episode(epoch)
+                epx, agent_pos_list, mean_surv_rate = self.get_episode(epoch)
             episode, episode_stat = epx
             merge_stat(episode_stat, self.stats)
             self.stats['num_episodes'] += 1
@@ -300,7 +339,7 @@ class Trainer(object):
         self.last_step = False
         self.stats['num_steps'] = len(batch)
         batch = Transition(*zip(*batch))
-        return batch, self.stats
+        return batch, self.stats, mean_surv_rate
 
     def test_run_batch(self, epoch):
         batch = []
@@ -324,7 +363,7 @@ class Trainer(object):
     # only used when nprocesses=1
 
     def train_batch(self, epoch):
-        batch, stat = self.run_batch(epoch)
+        batch, stat, mean_surv_rate = self.run_batch(epoch)
         self.optimizer.zero_grad()
 
         s = self.compute_grad(batch)
@@ -334,7 +373,7 @@ class Trainer(object):
                 p._grad.data /= stat['num_steps']
         self.optimizer.step()
 
-        return stat
+        return stat, mean_surv_rate
 
     def test_batch(self, epoch):
         if self.args.scenario == 'predator':

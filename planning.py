@@ -1,7 +1,7 @@
 import gym
 from gym import spaces, error, utils
 from gym.utils import seeding
-#from gym.envs.classic_control import rendering
+from gym.envs.classic_control import rendering
 import numpy as np
 import configparser
 from os import path
@@ -264,10 +264,13 @@ class QuadrotorFormation(gym.Env):
 
         info['alive_mask'] = np.copy(self.agent_status)
 
+        surveillance_rate = np.sum(self.grid_visits != 0) / len(self.grid_visits)
+        
+
         if self.is_planner:
             return reward_list, done
 
-        return self.get_observation(), reward_list, done, info, [self.quadrotors[i].state for i in range(self.n_agents)]
+        return self.get_observation(), reward_list, done, info, [self.quadrotors[i].state for i in range(self.n_agents)], surveillance_rate
 
         
 
@@ -607,7 +610,7 @@ class QuadrotorFormation(gym.Env):
             self.viewer = rendering.Viewer(500, 500)
             self.viewer.set_bounds(-self.x_lim,
                                    self.x_lim, -self.y_lim, self.y_lim)
-            fname = path.join(path.dirname(__file__), "assets/drone.png")
+            fname = path.join(path.dirname(__file__), "assets/dr.png")
 
             # obstacle_pos_xy = [x_min, y_min, z_min, x_max, y_max, z_max]
             # for i in range(len(self.obstacle_points)):
@@ -625,16 +628,16 @@ class QuadrotorFormation(gym.Env):
             # l,r,t,b = -cartwidth/2, cartwidth/2, cartheight/2, -cartheight/2
             # axleoffset =cartheight/4.0
             # cart = rendering.FilledPolygon([(l,b), (l,t), (r,t), (r,b)])
-            for j in range(self.battery_points.shape[0]):
-                charge_station.append(rendering.make_polygon([(self.battery_points[j][0],self.battery_points[j][1]), 
-                                                (self.battery_points[j][0],self.battery_points[j][4]), 
-                                                (self.battery_points[j][3],self.battery_points[j][4]), 
-                                                (self.battery_points[j][3],self.battery_points[j][1])]))
+            # for j in range(self.battery_points.shape[0]):
+            #     charge_station.append(rendering.make_polygon([(self.battery_points[j][0],self.battery_points[j][1]), 
+            #                                     (self.battery_points[j][0],self.battery_points[j][4]), 
+            #                                     (self.battery_points[j][3],self.battery_points[j][4]), 
+            #                                     (self.battery_points[j][3],self.battery_points[j][1])]))
 
-                station_transform.append(rendering.Transform())
-                charge_station[j].add_attr(station_transform[j])
-                charge_station[j].set_color(.1, .5, .8)
-                self.viewer.add_geom(charge_station[j])
+            #     station_transform.append(rendering.Transform())
+            #     charge_station[j].add_attr(station_transform[j])
+            #     charge_station[j].set_color(.1, .5, .8)
+            #     self.viewer.add_geom(charge_station[j])
 
             self.drone_transforms = []
             self.drones = []
