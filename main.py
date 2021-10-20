@@ -2,7 +2,7 @@ import sys
 import time
 import signal
 import argparse
-# import airsim
+import airsim
 import pprint
 
 import numpy as np
@@ -131,8 +131,10 @@ parser.add_argument('--test-model', default="weight/planning.pt", type=str,
                     help='Model to test')    
 parser.add_argument('--scenario', type=str, default='planning',
                     help='predator or planning ')
-parser.add_argument('--airsim_vis', type=bool, default=False,
+parser.add_argument('--airsim_vis', action='store_true', default=False,
                     help='Visualize in Airsim when testing')
+parser.add_argument('--visualization', action='store_true', default=False,
+                    help="enable commnet model")
 
 
 # init_args_for_env(parser)
@@ -162,14 +164,13 @@ if hasattr(args, 'enemy_comm') and args.enemy_comm:
     else:
         raise RuntimeError("Env. needs to pass argument 'nenemy'.")
 
-visualization = False
+# visualization = True
 is_centralized = False
 N_frame = 5
 
-
 if args.scenario == 'predator':
     from predator_prey import QuadrotorFormation
-    env = QuadrotorFormation(n_agents=args.nagents, n_bots=args.nbots)
+    env = QuadrotorFormation(n_agents=args.nagents, n_bots=args.nbots, visualization=args.visualization)
     if(args.airsim_vis == True):
         #Set Up JSON file for AirSim
         js_modifier = Json_Editor(2*args.nagents)
@@ -178,7 +179,7 @@ if args.scenario == 'predator':
 elif args.scenario == 'planning':
     from planning import QuadrotorFormation
     env = QuadrotorFormation(n_agents=args.nagents, N_frame=N_frame,
-                             visualization=visualization, is_centralized=is_centralized)
+                             visualization=args.visualization, is_centralized=is_centralized)
     if(args.airsim_vis == True):
         #Set Up JSON file for AirSim
         js_modifier = Json_Editor(args.nagents)
@@ -281,8 +282,12 @@ def run(num_epochs):
             for n in range(args.epoch_size):
                 if n == args.epoch_size - 1 and args.display:
                     trainer.display = True
-                s, mean_surv_rate = trainer.train_batch(ep)
-                episode_surv_rates.append(mean_surv_rate)
+                if args.scenario == "planning":
+                    s, mean_surv_rate = trainer.train_batch(ep)
+                    episode_surv_rates.append(mean_surv_rate)
+                elif args.scenario == "predator":
+                    s = trainer.train_batch(ep)
+                
                 merge_stat(s, stat)
                 trainer.display = False
 
@@ -315,13 +320,13 @@ def run(num_epochs):
             if 'enemy_comm' in stat.keys():
                 print('Enemy-Comm: {}'.format(stat['enemy_comm']))
 
+            if args.scenario == "planning":
+                if np.mean(episode_surv_rates[-args.last_n_episode:]) < args.train_thresh and len(episode_surv_rates) >= args.min_episode :
+                    print ("Mean Surveillance of last 5 episodes: {0:.3}. Too low surveillance rate! Exit!".format(np.mean(episode_surv_rates[-args.last_n_episode:])))
+                    if args.visualization:
+                        env.close()
+                    break
             
-            if np.mean(episode_surv_rates[-args.last_n_episode:]) < args.train_thresh and len(episode_surv_rates) >= args.min_episode :
-                print ("Mean Surveillance of last 5 episodes: {0:.3}. Too low surveillance rate! Exit!".format(np.mean(episode_surv_rates[-args.last_n_episode:])))
-                if visualization:
-                    env.close()
-                break
-
             if args.plot:
                 for k, v in log.items():
                     if v.plot and len(v.data) > 0:
@@ -330,6 +335,7 @@ def run(num_epochs):
 
             if ep % args.save_every == 0 and ep != 0:
                 save(ep)
+                
     elif args.mode == 'Test':
         print('TEST MODE')
         batch = []
@@ -360,7 +366,6 @@ def run(num_epochs):
                     pickle.dump(total_pos_list, f)
 
             trainer.display = False
-            print("Episode:", ep)
 
             if(args.airsim_vis == True):
                 client = airsim.MultirotorClient()

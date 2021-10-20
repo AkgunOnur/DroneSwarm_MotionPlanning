@@ -41,6 +41,7 @@ class Trainer(object):
         self.env = env
         self.display = False
         self.last_step = False
+        self.print_count = 0
         self.is_centralized = is_centralized
         self.optimizer = optim.RMSprop(policy_net.parameters(),
                                        lr=args.lrate, alpha=0.97, eps=1e-6)
@@ -49,7 +50,6 @@ class Trainer(object):
 
     def get_episode(self, epoch):
         episode = []
-
         stat = dict()
         info = dict()
         switch_t = -1
@@ -125,7 +125,6 @@ class Trainer(object):
                     action[0], t, self.is_centralized)
                 next_state, uncertainty_map = total_obs
 
-            # print("agent_pos",agent_pos)
             agent_pos_list.append(np.array(agent_pos))
             if self.args.scenario == 'predator':
                 bot_pos_list.append(np.array(bot_pos))
@@ -150,7 +149,6 @@ class Trainer(object):
             # reward = reward * misc['alive_mask']
             stat['reward'] = stat.get('reward', 0) + \
                 reward[:self.args.nfriendly]
-            # print(stat['reward'])
             if hasattr(self.args, 'enemy_comm') and self.args.enemy_comm:
                 stat['enemy_reward'] = stat.get(
                     'enemy_reward', 0) + reward[self.args.nfriendly:]
@@ -183,12 +181,25 @@ class Trainer(object):
                     #     # Update Progress Bar
                     #     printProgressBar(i + 1, l, prefix = 'Progress:', suffix = 'Complete', length = 50)
 
-            
-
             if done:
                 break
+
         stat['num_steps'] = t + 1
         stat['steps_taken'] = stat['num_steps']
+
+        if self.args.scenario == "predator":
+            n_agent = len(bot_pos_list[-1])
+            score = 0
+            for idx in range(n_agent):
+                if bot_pos_list[-1][idx][2] == 0.:
+                    score += 1.0
+            
+            total_score = score/n_agent*100.0
+            if self.print_count == epoch:
+                print("EPISODE:",epoch,"SUCCESS RATE = %",total_score)
+                self.print_count += 1
+            else:
+                pass
 
         if hasattr(self.env, 'reward_terminal'):
             reward = self.env.reward_terminal()
@@ -207,9 +218,8 @@ class Trainer(object):
         if hasattr(self.env, 'get_stat'):
             merge_stat(self.env.get_stat(), stat)
 
-        # print("agent_list")
-        # print(agent_pos_list)
         if self.args.scenario == 'predator':
+            self.env.close()
             return (episode, stat), agent_pos_list, bot_pos_list
         elif self.args.scenario == 'planning':
             return (episode, stat), agent_pos_list, np.mean(surveillance_rate_list)
@@ -341,7 +351,11 @@ class Trainer(object):
         self.last_step = False
         self.stats['num_steps'] = len(batch)
         batch = Transition(*zip(*batch))
-        return batch, self.stats, mean_surv_rate
+
+        if self.args.scenario == "planning":
+            return batch, self.stats, mean_surv_rate
+        elif self.args.scenario == "predator":
+            return batch, self.stats
 
     def test_run_batch(self, epoch):
         batch = []
@@ -365,7 +379,10 @@ class Trainer(object):
     # only used when nprocesses=1
 
     def train_batch(self, epoch):
-        batch, stat, mean_surv_rate = self.run_batch(epoch)
+        if self.args.scenario == "planning":
+            batch, stat, mean_surv_rate = self.run_batch(epoch)
+        elif self.args.scenario == "predator":
+            batch, stat = self.run_batch(epoch)
         self.optimizer.zero_grad()
 
         s = self.compute_grad(batch)
@@ -375,7 +392,10 @@ class Trainer(object):
                 p._grad.data /= stat['num_steps']
         self.optimizer.step()
 
-        return stat, mean_surv_rate
+        if self.args.scenario == "planning":
+            return stat, mean_surv_rate
+        elif self.args.scenario == "predator":
+            return stat
 
     def test_batch(self, epoch):
         if self.args.scenario == 'predator':

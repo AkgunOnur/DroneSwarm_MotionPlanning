@@ -1,7 +1,7 @@
 import gym
 from gym import spaces, error, utils
 from gym.utils import seeding
-#from gym.envs.classic_control import rendering
+from gym.envs.classic_control import rendering
 import numpy as np
 import configparser
 from os import path
@@ -298,7 +298,7 @@ class QuadrotorFormation(gym.Env):
             self.viewer = rendering.Viewer(500, 500)
             self.viewer.set_bounds(-self.x_lim,
                                    self.x_lim, -self.y_lim, self.y_lim)
-            fname = path.join(path.dirname(__file__), "assets/black.png")
+            fname = path.join(path.dirname(__file__), "assets/dr.png")
             fname2 = path.join(path.dirname(__file__), "assets/plane2.png")
 
             self.drone_transforms = []
