@@ -4,11 +4,13 @@ import signal
 import argparse
 import airsim
 import pprint
+from msgpackrpc.transport.tcp import ClientSocket
 
 import numpy as np
 import torch
 import visdom
 import data
+import socket
 from models import *
 from comm import CommNetMLP
 from utils import *
@@ -144,8 +146,6 @@ args = parser.parse_args()
 dictionary = {
     "name": args.scenario,
 }
-
-
 
 if args.ic3net:
     args.commnet = 1
@@ -326,6 +326,9 @@ def run(num_epochs):
                     if args.visualization:
                         env.close()
                     break
+
+            if args.visualization:
+                env.close()
             
             if args.plot:
                 for k, v in log.items():
@@ -345,6 +348,15 @@ def run(num_epochs):
 
         agents_list = [agent for agent in range(args.nagents)]
         bots_list = [bot for bot in range(args.nbots)]
+
+        HOST = '127.0.0.1'
+        PORT = 9090
+    
+        # with socket.socket(socket.AF_INET, socket.SO_REUSEADDR) as clientSocket:
+        #     clientSocket.connect((HOST, PORT))
+
+        clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        clientSocket.connect((HOST, PORT))
 
         for ep in range(args.epoch_size):
             takeoff = False
@@ -399,17 +411,34 @@ def run(num_epochs):
                             fb.join()
                     takeoff = True
 
-
-                
                 i = 0
                 if args.scenario == 'predator':
                     for agent_p, bot_p in zip(agent_pos, bot_pos):
+
+                        info_list = []
+
+                        curr_agentPos = [[agent_p[drn][0], agent_p[drn][1], agent_p[drn][2]] for drn in range(len(agents_list))]
+                        # with open('./agents_position/current_agents_pos.pkl', 'wb') as f:
+                        #     pickle.dump(curr_agentPos, f)
+
+                        curr_botPos = [[bot_p[bt][0], bot_p[bt][1], bot_p[bt][2]] for bt in range(len(bots_list))]
+                        # with open('./agents_position/current_bots_pos.pkl', 'wb') as f:
+                        #     pickle.dump(curr_botPos, f)
+
+                        info_list.append(curr_agentPos)
+                        info_list.append(curr_botPos)
+                        
+                        # print("curr_agentPos", curr_agentPos)
+                        # print("curr_botPos", curr_botPos)
+                        info_data = pickle.dumps(info_list)
+                        clientSocket.send(info_data)
 
                         if i == 0:
                             airsim.wait_key('Press any key to take initial position')
 
                             for drn in agents_list:
                                 client.moveToPositionAsync(agent_p[drn][0], agent_p[drn][1], agent_p[drn][2], 6, vehicle_name=f"Drone{drn+1}")
+                                
                             for bt in bots_list:
                                 client.moveToPositionAsync(bot_p[bt][0], bot_p[bt][1], bot_p[bt][2], 6, vehicle_name=f"Drone{args.nagents+bt+1}")
 
@@ -419,6 +448,7 @@ def run(num_epochs):
                         else:
                             for drn in agents_list:
                                 client.moveToPositionAsync(agent_p[drn][0], agent_p[drn][1], agent_p[drn][2], 3, vehicle_name=f"Drone{drn+1}")
+                                
                             for bt in bots_list:
                                 client.moveToPositionAsync(bot_p[bt][0], bot_p[bt][1], bot_p[bt][2], 2, vehicle_name=f"Drone{args.nagents+bt+1}")
 
@@ -429,7 +459,6 @@ def run(num_epochs):
                 elif args.scenario == 'planning':
                     f_list = []
                     for agent_p in zip(agent_pos):
-                        #print("Agents",agent_p)
                         
                         if i == 0:
                             airsim.wait_key('Press any key to take initial position')

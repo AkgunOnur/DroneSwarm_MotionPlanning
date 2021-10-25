@@ -76,3 +76,4 @@ if __name__ == "__main__":
     for idx in range(len(agents_pos_list)):
         agent_pos, bot_pos = agents_pos_list[idx], bots_pos_list[idx]
         plot_trajectory(agent_pos, bot_pos, n_agents, n_bots)
+        
