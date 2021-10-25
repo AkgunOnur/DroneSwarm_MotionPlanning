@@ -519,7 +519,7 @@ if sys.flags.interactive == 0 and args.nprocesses > 1:
 if (args.mode == 'test' or args.mode == 'Test')  and args.scenario == 'planning':
     print("TEST RESULTS")
     reporter = Reporter()
-    file_list = glob.glob('./agents_position/*.pkl')
+    file_list = glob.glob('./agents_positions_planner/*.pkl')
     for i, file in enumerate(file_list):
         print("{0}/{1} file {2} is loaded! \n".format(i +
                                                       1, len(file_list), file))
