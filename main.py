@@ -55,8 +55,8 @@ parser.add_argument('--recurrent', action='store_true', default=True,
 # optimization
 parser.add_argument('--gamma', type=float, default=1.0,
                     help='discount factor')
-parser.add_argument('--tau', type=float, default=1.0,
-                    help='gae (remove?)')
+# parser.add_argument('--tau', type=float, default=1.0,
+#                     help='gae (remove?)')
 parser.add_argument('--seed', type=int, default=-1,
                     help='random seed. Pass -1 for random seed')  # TODO: works in thread?
 parser.add_argument('--normalize_rewards', action='store_true', default=False,
@@ -68,17 +68,17 @@ parser.add_argument('--entr', type=float, default=0,
 parser.add_argument('--value_coeff', type=float, default=0.01,
                     help='coeff for value loss term')
 # environment
-parser.add_argument('--env_name', default="Cartpole",
-                    help='name of the environment to run')
-parser.add_argument('--nactions', default='1', type=str,
-                    help='the number of agent actions (0 for continuous). Use N:M:K for multiple actions')
-parser.add_argument('--action_scale', default=1.0, type=float,
-                    help='scale action output from model')
+# parser.add_argument('--env_name', default="Cartpole",
+#                     help='name of the environment to run')
+# parser.add_argument('--nactions', default='1', type=str,
+#                     help='the number of agent actions (0 for continuous). Use N:M:K for multiple actions')
+# parser.add_argument('--action_scale', default=1.0, type=float,
+#                     help='scale action output from model')
 # other
-parser.add_argument('--plot', action='store_true', default=False,
-                    help='plot training progress')
-parser.add_argument('--plot_env', default='main', type=str,
-                    help='plot env name')
+# parser.add_argument('--plot', action='store_true', default=False,
+#                     help='plot training progress')
+# parser.add_argument('--plot_env', default='main', type=str,
+#                     help='plot env name')
 
 # Abdullahtan al save kismini
 parser.add_argument('--save', default="True", type=str,
@@ -125,8 +125,8 @@ parser.add_argument('--advantages_per_action', default=False, action='store_true
                     help='Whether to multipy log porb for each chosen action with advantages')
 parser.add_argument('--share_weights', default=False, action='store_true',
                     help='Share weights for hops')
-parser.add_argument('--test', default=False, type=bool,
-                    help='Train or Test')
+# parser.add_argument('--test', default=False, type=bool,
+#                     help='Train or Test')
 parser.add_argument('--mode', default="Train", type=str,
                     help='Train or Test')   
 parser.add_argument('--test-model', default="weight/planning.pt", type=str,
@@ -152,10 +152,6 @@ if args.ic3net:
     args.hard_attn = 1
     args.mean_ratio = 0
 
-    # For TJ set comm action to 1 as specified in paper to showcase
-    # importance of individual rewards even in cooperative games
-    if args.env_name == "traffic_junction":
-        args.comm_action_one = True
 # Enemy comm
 args.nfriendly = args.nagents
 if hasattr(args, 'enemy_comm') and args.enemy_comm:
@@ -267,14 +263,14 @@ log['value_loss'] = LogField(list(), True, 'epoch', 'num_steps')
 log['action_loss'] = LogField(list(), True, 'epoch', 'num_steps')
 log['entropy'] = LogField(list(), True, 'epoch', 'num_steps')
 
-if args.plot:
-    vis = visdom.Visdom(env=args.plot_env)
+# if args.plot:
+#     vis = visdom.Visdom(env=args.plot_env)
 
 def run(num_epochs):
     episode_surv_rates = []
 
     takeoff = False
-    if args.mode=='Train':
+    if args.mode=='Train' or args.mode=='train':
         print("TRAIN MODE")
         for ep in range(num_epochs):
             epoch_begin_time = time.time()
@@ -330,16 +326,16 @@ def run(num_epochs):
             if args.visualization:
                 env.close()
             
-            if args.plot:
-                for k, v in log.items():
-                    if v.plot and len(v.data) > 0:
-                        vis.line(np.asarray(v.data), np.asarray(log[v.x_axis].data[-len(v.data):]),
-                                 win=k, opts=dict(xlabel=v.x_axis, ylabel=k))
+            # if args.plot:
+            #     for k, v in log.items():
+            #         if v.plot and len(v.data) > 0:
+            #             vis.line(np.asarray(v.data), np.asarray(log[v.x_axis].data[-len(v.data):]),
+            #                      win=k, opts=dict(xlabel=v.x_axis, ylabel=k))
 
             if ep % args.save_every == 0 and ep != 0:
                 save(ep)
                 
-    elif args.mode == 'Test':
+    elif args.mode == 'Test' or  args.mode =='test':
         print('TEST MODE')
         batch = []
         total_pos_list = []
@@ -549,10 +545,10 @@ if sys.flags.interactive == 0 and args.nprocesses > 1:
     import os
     os._exit(0)
 
-if args.test and args.scenario == 'planning':
+if (args.mode == 'test' or args.mode == 'Test')  and args.scenario == 'planning':
     print("TEST RESULTS")
     reporter = Reporter()
-    file_list = glob.glob('./agents_position/*.pkl')
+    file_list = glob.glob('./agents_positions_planner/*.pkl')
     for i, file in enumerate(file_list):
         print("{0}/{1} file {2} is loaded! \n".format(i +
                                                       1, len(file_list), file))
