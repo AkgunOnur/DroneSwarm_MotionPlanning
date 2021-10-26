@@ -84,8 +84,6 @@ class VirEnv(gym.Env):
         
         # Environment Step
 
-        print("curr_botPos",curr_botPos)
-
         for agent_ind in range(self.n_agents):
             self.quadrotors[agent_ind].state[0] = curr_agentPos[agent_ind][0]
             self.quadrotors[agent_ind].state[1] = curr_agentPos[agent_ind][1]
@@ -303,36 +301,19 @@ class VirEnv(gym.Env):
 
 if __name__ == "__main__":
 
-    # client = airsim.MultirotorClient()
-    # client.confirmConnection()
-
-    with open('./agents_position/current_agents_pos.pkl', 'rb') as f:
+    with open('./agents_position/agents_positions.pkl', 'rb') as f:
         agent_pos = pickle.load(f)
     
-    with open('./agents_position/current_bots_pos.pkl', 'rb') as f:
+    with open('./agents_position/bots_positions.pkl', 'rb') as f:
         bot_pos = pickle.load(f)
 
-    n_agents = len(agent_pos)
-    n_bots = len(bot_pos)
-
-    agent_posL = []
-    bot_posL = []
-
-    # for agent_ind in range(n_agents):
-    #     pos = client.simGetVehiclePose(vehicle_name=f"Drone{agent_ind+1}")
-    #     agent_posL.append([pos.position.x_val, pos.position.y_val, pos.position.z_val])
-    
-    # print(agent_posL)
-
-    # for bot_ind in range(n_bots):
-    #     pos = client.simGetVehiclePose(vehicle_name=f"Drone{n_agents+bot_ind+1}")
-    #     bot_posL.append([pos.position.x_val, pos.position.y_val, pos.position.z_val])
+    n_agents = len(agent_pos[0][0])
+    n_bots = len(bot_pos[0][0])
 
     HOST = '127.0.0.1'
     PORT = 9090
 
     virtual_env = VirEnv(n_agents=n_agents, n_bots=n_bots)
-    virtual_env.reset(agent_pos, bot_pos)
 
     serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     serverSocket.bind((HOST, PORT))
@@ -342,6 +323,14 @@ if __name__ == "__main__":
     print("Connected by", clientAddress)
     print("Accepted a connection request from %s:%s"%(clientAddress[0], clientAddress[1]))
 
+    idx = 0
     while True:
+
         dataFromClient = pickle.loads(clientsocket.recv(1024))
+
+        if idx == 0:
+            virtual_env.reset(dataFromClient[0], dataFromClient[1])
+
         virtual_env.step(dataFromClient[0], dataFromClient[1])
+
+        idx += 1

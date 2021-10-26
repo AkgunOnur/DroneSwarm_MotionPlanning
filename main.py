@@ -414,18 +414,12 @@ def run(num_epochs):
                         info_list = []
 
                         curr_agentPos = [[agent_p[drn][0], agent_p[drn][1], agent_p[drn][2]] for drn in range(len(agents_list))]
-                        # with open('./agents_position/current_agents_pos.pkl', 'wb') as f:
-                        #     pickle.dump(curr_agentPos, f)
 
                         curr_botPos = [[bot_p[bt][0], bot_p[bt][1], bot_p[bt][2]] for bt in range(len(bots_list))]
-                        # with open('./agents_position/current_bots_pos.pkl', 'wb') as f:
-                        #     pickle.dump(curr_botPos, f)
 
                         info_list.append(curr_agentPos)
                         info_list.append(curr_botPos)
                         
-                        # print("curr_agentPos", curr_agentPos)
-                        # print("curr_botPos", curr_botPos)
                         info_data = pickle.dumps(info_list)
                         clientSocket.send(info_data)
 
