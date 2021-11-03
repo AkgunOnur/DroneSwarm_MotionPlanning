@@ -166,7 +166,7 @@ N_frame = 5
 
 if args.scenario == 'predator':
     from predator_prey import QuadrotorFormation
-    env = QuadrotorFormation(n_agents=args.nagents, n_bots=args.nbots, visualization=args.visualization)
+    env = QuadrotorFormation(n_agents=args.nagents, n_bots=args.nbots, visualization=False)
     if(args.airsim_vis == True):
         #Set Up JSON file for AirSim
         js_modifier = Json_Editor(2*args.nagents)
@@ -175,7 +175,7 @@ if args.scenario == 'predator':
 elif args.scenario == 'planning':
     from planning import QuadrotorFormation
     env = QuadrotorFormation(n_agents=args.nagents, N_frame=N_frame,
-                             visualization=args.visualization, is_centralized=is_centralized)
+                             visualization=False, is_centralized=is_centralized)
     if(args.airsim_vis == True):
         #Set Up JSON file for AirSim
         js_modifier = Json_Editor(args.nagents)
@@ -351,8 +351,9 @@ def run(num_epochs):
         # with socket.socket(socket.AF_INET, socket.SO_REUSEADDR) as clientSocket:
         #     clientSocket.connect((HOST, PORT))
 
-        clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        clientSocket.connect((HOST, PORT))
+        if args.visualization:
+            clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            clientSocket.connect((HOST, PORT))
 
         for ep in range(args.epoch_size):
             takeoff = False
@@ -410,18 +411,18 @@ def run(num_epochs):
                 i = 0
                 if args.scenario == 'predator':
                     for agent_p, bot_p in zip(agent_pos, bot_pos):
+                        if args.visualization:
+                            info_list = []
 
-                        info_list = []
+                            curr_agentPos = [[agent_p[drn][0], agent_p[drn][1], agent_p[drn][2]] for drn in range(len(agents_list))]
 
-                        curr_agentPos = [[agent_p[drn][0], agent_p[drn][1], agent_p[drn][2]] for drn in range(len(agents_list))]
+                            curr_botPos = [[bot_p[bt][0], bot_p[bt][1], bot_p[bt][2]] for bt in range(len(bots_list))]
 
-                        curr_botPos = [[bot_p[bt][0], bot_p[bt][1], bot_p[bt][2]] for bt in range(len(bots_list))]
-
-                        info_list.append(curr_agentPos)
-                        info_list.append(curr_botPos)
-                        
-                        info_data = pickle.dumps(info_list)
-                        clientSocket.send(info_data)
+                            info_list.append(curr_agentPos)
+                            info_list.append(curr_botPos)
+                            
+                            info_data = pickle.dumps(info_list)
+                            clientSocket.send(info_data)
 
                         if i == 0:
                             airsim.wait_key('Press any key to take initial position')
