@@ -3,13 +3,13 @@ import time
 import signal
 import argparse
 import airsim
-import pprint
+# import pprint
 from msgpackrpc.transport.tcp import ClientSocket
 
 import numpy as np
 import torch
-import visdom
-import data
+# import visdom
+# import data
 import socket
 from models import *
 from comm import CommNetMLP
@@ -31,11 +31,11 @@ torch.set_default_tensor_type('torch.DoubleTensor')
 parser = argparse.ArgumentParser(description='PyTorch RL trainer')
 # training
 # note: number of steps per epoch = epoch_size X batch_size x nprocesses
-parser.add_argument('--num_epochs', default=2000, type=int,
+parser.add_argument('--num_epochs', default=1, type=int,
                     help='number of training epochs')
 parser.add_argument('--epoch_size', type=int, default=1,
                     help='number of update iterations in an epoch')
-parser.add_argument('--max_steps', default=1000, type=int,
+parser.add_argument('--max_steps', default=200, type=int,
                     help='force to end the game after this many steps')
 parser.add_argument('--batch_size', type=int, default=200,
                     help='number of steps before each update (per thread)')
@@ -135,7 +135,7 @@ parser.add_argument('--scenario', type=str, default='planning',
                     help='predator or planning ')
 parser.add_argument('--airsim_vis', action='store_true', default=False,
                     help='Visualize in Airsim when testing')
-parser.add_argument('--visualization', action='store_true', default=False,
+parser.add_argument('--visualization', action='store_true', default=True,
                     help="enable commnet model")
 
 
@@ -213,7 +213,6 @@ torch.manual_seed(args.seed)
 
 print(args)
 
-
 if args.commnet:
     print("Policy Net: CommNetMLP")
     policy_net = CommNetMLP(args, num_inputs)
@@ -245,10 +244,8 @@ else:
 #disp_trainer = Trainer(args, policy_net, env)
 disp_trainer.display = True
 
-
 def disp():
     x = disp_trainer.get_episode()
-
 
 log = dict()
 log['epoch'] = LogField(list(), False, None, None)
@@ -268,7 +265,6 @@ log['entropy'] = LogField(list(), True, 'epoch', 'num_steps')
 
 def run(num_epochs):
     episode_surv_rates = []
-
     takeoff = False
     if args.mode=='Train' or args.mode=='train':
         print("TRAIN MODE")
@@ -325,25 +321,19 @@ def run(num_epochs):
 
             if args.visualization:
                 env.close()
-            
-            # if args.plot:
-            #     for k, v in log.items():
-            #         if v.plot and len(v.data) > 0:
-            #             vis.line(np.asarray(v.data), np.asarray(log[v.x_axis].data[-len(v.data):]),
-            #                      win=k, opts=dict(xlabel=v.x_axis, ylabel=k))
 
             if ep % args.save_every == 0 and ep != 0:
                 save(ep)
                 
     elif args.mode == 'Test' or  args.mode =='test':
         print('TEST MODE')
-        batch = []
         total_pos_list = []
         agent_pos_list = []
         bot_pos_list = []
 
         agents_list = [agent for agent in range(args.nagents)]
-        bots_list = [bot for bot in range(args.nbots)]
+        if args.scenario == 'predator':
+            bots_list = [bot for bot in range(args.nbots)]
 
         HOST = '127.0.0.1'
         PORT = 9090
@@ -446,40 +436,45 @@ def run(num_epochs):
                             time.sleep(0.1)
                         i += 1
                     
-
                 elif args.scenario == 'planning':
-                    f_list = []
+                    #f_list = []
                     for agent_p in zip(agent_pos):
-                        
+                        if args.visualization:
+                            info_list = []
+                            curr_agentPos = [[agent_p[0][drn][0], agent_p[0][drn][1], agent_p[0][drn][2]] for drn in range(len(agents_list))]
+                            info_list.append(curr_agentPos)      
+                            info_data = pickle.dumps(info_list)	
+                            clientSocket.send(info_data)
+
                         if i == 0:
                             airsim.wait_key('Press any key to take initial position')
                             for drn in agents_list:
-                                f_list.append(client.moveToPositionAsync(agent_p[0][drn][0], agent_p[0][drn][1], -agent_p[0][drn][2], 5, vehicle_name=f"Drone{drn+1}"))
+                                client.moveToPositionAsync(agent_p[0][drn][0], agent_p[0][drn][1], -agent_p[0][drn][2], 6, vehicle_name=f"Drone{drn+1}")
 
-                            for fx in f_list:
-                                fx.join() 
+                            airsim.wait_key('Press any key to start')
+                            time.sleep(0.1)
+
 
                         else:
                             for drn in agents_list:
-                                client.moveToPositionAsync(agent_p[0][drn][0], agent_p[0][drn][1], -agent_p[0][drn][2], 5, vehicle_name=f"Drone{drn+1}")
+                                client.moveToPositionAsync(agent_p[0][drn][0], agent_p[0][drn][1], -agent_p[0][drn][2], 3, vehicle_name=f"Drone{drn+1}")
                             time.sleep(0.1)
                         i += 1
                     
                     print("TEST RESULTS")
                     reporter = Reporter()
-                    file_list = glob.glob('./agents_position/*.pkl')
+                    file_list = glob.glob('./agents_positions_planner/*.pkl')
                     for i, file in enumerate(file_list):
                         print("{0}/{1} file {2} is loaded! \n".format(i +
                                                                     1, len(file_list), file))
                         pkl_name = os.path.split(os.path.splitext(file)[0])[1] + '.pkl'
                         reporter.get_map_coverage(pkl_name)
                     
-                
                 s_list = []
-                b_list = []
                 for drn in agents_list:
                     s_list.append(client.takeoffAsync(vehicle_name=f"Drone{drn+1}"))
                 if args.scenario == 'predator':
+                    b_list = []
                     for bt in bots_list:
                         b_list.append(client.takeoffAsync(vehicle_name=f"Drone{args.nagents+bt+1}"))
 
@@ -489,7 +484,6 @@ def run(num_epochs):
                 if args.scenario == 'predator':
                     for sbx in b_list:
                         sbx.join()
-
     else:
         print("Wrong Mode!!!")
 
