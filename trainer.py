@@ -172,9 +172,9 @@ class Trainer(object):
             if self.args.scenario == 'planning':
                 surveillance_rate_list.append(surveillance_rate)
             
-                if t % 1 == 0:
-                    # Initial call to print 0% progress
-                    printProgressBar(100*surveillance_rate, 100, prefix = 'Episode ' + str(epoch) + ": ", suffix = 'Surveillance Rate', length = 50)
+            if t % 1 == 0:
+                # Initial call to print 0% progress
+                printProgressBar(100*surveillance_rate, 100, prefix = 'Episode ' + str(epoch) + ": ", suffix = 'Surveillance Rate', length = 50)
                     # for i, item in enumerate(items):
                     #     # Do stuff...
                     #     time.sleep(0.1)

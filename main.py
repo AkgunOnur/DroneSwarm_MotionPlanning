@@ -135,7 +135,7 @@ parser.add_argument('--scenario', type=str, default='planning',
                     help='predator or planning ')
 parser.add_argument('--airsim_vis', action='store_true', default=False,
                     help='Visualize in Airsim when testing')
-parser.add_argument('--visualization', action='store_true', default=True,
+parser.add_argument('--visualization', action='store_true', default=False,
                     help="enable commnet model")
 
 
