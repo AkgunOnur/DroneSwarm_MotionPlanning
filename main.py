@@ -461,7 +461,7 @@ def run(num_epochs):
                             time.sleep(0.1)
                         i += 1
                     
-                    print("TEST RESULTS")
+                    print("\nTEST RESULTS")
                     reporter = Reporter()
                     file_list = glob.glob('./agents_positions_planner/*.pkl')
                     for i, file in enumerate(file_list):
@@ -535,7 +535,7 @@ if sys.flags.interactive == 0 and args.nprocesses > 1:
     os._exit(0)
 
 if (args.mode == 'test' or args.mode == 'Test')  and args.scenario == 'planning':
-    print("TEST RESULTS")
+    print("\nTEST RESULTS")
     reporter = Reporter()
     file_list = glob.glob('./agents_positions_planner/*.pkl')
     for i, file in enumerate(file_list):

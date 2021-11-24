@@ -1,0 +1,6 @@
+numpy==1.21.4
+gym==0.21.0
+pyglet==1.5.21
+airsim==1.5.0
+scipy==1.7.2
+matplotlib==3.5.0

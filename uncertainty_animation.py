@@ -26,8 +26,8 @@ class AnimatedVoxels(object):
         self.ax.set_ylabel("y")
         self.ax.set_zlabel("z")
 
-        self.color_names = ['red', 'blue', 'gold', 'green', 'purple', 'orange', 'brown', 'pink', 'gray', 'olive', 'cyan', 'black']
 
+        self.color_name = 'red'
         plt.xlim(0, 40)
         plt.ylim(0, 40)
         plt.show()
@@ -46,9 +46,11 @@ class AnimatedVoxels(object):
         #voxels = voxel_list[0] | voxel_list[1] | voxel_list[2] | voxel_list[3] | voxel_list[4]
         colors = np.empty(voxels.shape, dtype=object)
         for i in range(self.nagents):
-            colors[voxel_list[i]] = self.color_names[i]
+            colors[voxel_list[i]] = self.color_name
+            #voxel_list[i] = plt.plot(xdata[n_a], ydata[n_a], zdata[n_a], lw=2, c=color_list[n_a])[0]
+            #voxel_list[i].set_label('Agent %d' %(i+1))
 
-        self.ax.voxels(voxels, facecolors=colors, edgecolor='k')
+        self.ax.voxels(voxels, facecolors=colors, edgecolor='k',label="drone")
 
 if __name__ == "__main__":
     AnimatedVoxels(5)

@@ -36,7 +36,7 @@ def plot_trajectory(agent_p, bot_p, n_agents, n_bots):
     zdata = [[] for _ in range(n_agents)]
 
     for n_b in range(n_bots):
-        redDots[n_b] = ax.scatter3D(bot_p[0][n_b][0], bot_p[0][n_b][1], bot_p[0][n_b][2], lw=14, c='r')
+        redDots[n_b] = ax.scatter3D(bot_p[0][n_b][0], bot_p[0][n_b][1], bot_p[0][n_b][2], lw=14, c='r', label=("Bots" if n_b==0 else None))
 
     for n_a in range(n_agents):
         agentDots[n_a] = ax.scatter3D(agent_p[0][n_a][0], agent_p[0][n_a][1], agent_p[0][n_a][2], lw=4, c=color_list[n_a])
@@ -49,7 +49,10 @@ def plot_trajectory(agent_p, bot_p, n_agents, n_bots):
 
     for n_a in range(n_agents):
         line[n_a] = plt.plot(xdata[n_a], ydata[n_a], zdata[n_a], lw=2, c=color_list[n_a])[0]
-        
+        line[n_a].set_label('Agent %d' %(n_a+1))
+
+    plt.legend()
+
     ax.set_xlim((-51, 51))
     ax.set_ylim((-51, 51))
     ax.set_zlim((-15, 15))

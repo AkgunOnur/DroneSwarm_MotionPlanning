@@ -7,6 +7,8 @@ import torch.nn as nn
 from utils import *
 from action_utils import *
 import time
+import progressbar
+
 
 Transition = namedtuple('Transition', ('state', 'action', 'action_out', 'value', 'episode_mask', 'episode_mini_mask', 'next_state',
                                        'reward', 'misc'))
@@ -29,6 +31,7 @@ def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, 
     filledLength = int(length * iteration // total)
     bar = fill * filledLength + '-' * (length - filledLength)
     print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = printEnd)
+    sys.stdout.write('\r')
     # Print New Line on Complete
     if iteration == total: 
         print()
@@ -47,6 +50,11 @@ class Trainer(object):
                                        lr=args.lrate, alpha=0.97, eps=1e-6)
         #self.optimizer = optim.Adam(policy_net.parameters(), lr = args.lrate)
         self.params = [p for p in self.policy_net.parameters()]
+        self.bar = progressbar.ProgressBar(maxval=100, \
+            widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
+        self.bar.start()
+        self.bar.finish()
+        #self.bar.start()
 
     def get_episode(self, epoch):
         episode = []
@@ -58,6 +66,9 @@ class Trainer(object):
         episode_rate_list = []
 
         if self.args.scenario == 'planning':
+
+            print("\nEpisode:{} \nSurveillance Rate:".format(epoch))
+            self.bar.start()
             total_obs, info = self.env.reset()
             state, uncertainty_map = total_obs
 
@@ -171,10 +182,8 @@ class Trainer(object):
 
             if self.args.scenario == 'planning':
                 surveillance_rate_list.append(surveillance_rate)
-            
-            if t % 1 == 0:
-                # Initial call to print 0% progress
-                printProgressBar(100*surveillance_rate, 100, prefix = 'Episode ' + str(epoch) + ": ", suffix = 'Surveillance Rate', length = 50)
+                self.bar.update(100*surveillance_rate)
+                #printProgressBar(100*surveillance_rate, 100, prefix = 'Episode ' + str(epoch) + ": ", suffix = 'Surveillance Rate', length = 50)
                     # for i, item in enumerate(items):
                     #     # Do stuff...
                     #     time.sleep(0.1)
@@ -182,6 +191,8 @@ class Trainer(object):
                     #     printProgressBar(i + 1, l, prefix = 'Progress:', suffix = 'Complete', length = 50)
 
             if done:
+                self.bar.finish()
+                #print("surveillance_rate:{}".format(surveillance_rate))
                 break
 
         stat['num_steps'] = t + 1

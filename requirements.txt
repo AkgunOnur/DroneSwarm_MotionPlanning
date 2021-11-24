@@ -1,0 +1,14 @@
+airsim==1.5.0
+gym==0.9.6
+ninja==1.10.2
+numpy==1.19.5
+pyglet==1.5.16
+torch==1.8.0
+six==1.16
+torchvision==0.9.0
+tornado==4.5.3
+visdom==0.1.4
+pandas==1.1.5
+matplotlib==3.4.3
+scipy==1.7.1
+

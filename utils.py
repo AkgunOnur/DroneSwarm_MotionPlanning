@@ -132,8 +132,8 @@ def init_args_for_env(parser):
     env.init_args(parser)
 
 def display_models(list_models):
-    print('='*100)
+    print('='*67)
     print('Model log:\n')
     for model in list_models:
         print(model)
-    print('='*100 + '\n')
+    #print('='*100 + '\n')
