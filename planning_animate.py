@@ -5,14 +5,16 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 import pickle
 
-def plot_trajectory(agent_p, agent_list):
-    n_agents = 5# len(agent_list)
+def plot_trajectory(agent_p, n_agents):
     numDataPoints = len(agent_p)
     global ax
     fig = plt.figure()
     ax = Axes3D(fig)
-    
-    color_list = ['g', 'b', 'r', 'y', 'm']
+
+    color_list = []
+    #generate random colors for a given number of agents and store them in a list
+    for i in range(n_agents):
+        color_list.append('#%06X' % np.random.randint(0, 0xFFFFFF))
     
     line = [None for _ in range(n_agents)]
     # agentDots = [None for _ in range(n_agents)]

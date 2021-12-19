@@ -23,6 +23,9 @@ import glob
 import os
 from json_editor import Json_Editor
 
+timeFolderName = str(time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.gmtime()))
+
+
 torch.utils.backcompat.broadcast_warning.enabled = True
 torch.utils.backcompat.keepdim_warning.enabled = True
 
@@ -490,7 +493,10 @@ def run(num_epochs):
 
 def save(ep):
     current_dir =  os.path.abspath(os.path.dirname(__file__))
-    file_path = current_dir + "/weight" + "/" + args.scenario + "_" + str(ep) + ".pt"
+    if not os.path.exists(current_dir  + "/weight" + "/" + args.scenario + "/" + str(timeFolderName)):
+        os.makedirs(current_dir  + "/weight" + "/" + args.scenario + "/" + str(timeFolderName))
+    file_path = current_dir  + "/weight" + "/" + args.scenario + "/" + str(timeFolderName) + "/" + args.scenario + "_" + str(ep) + ".pt"
+    print("file_path: ", file_path)
     d = dict()
     d['policy_net'] = policy_net.state_dict()
     d['log'] = log
