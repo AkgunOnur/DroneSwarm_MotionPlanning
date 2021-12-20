@@ -149,7 +149,7 @@ class VirEnv(gym.Env):
             self.viewer.set_bounds(-self.x_lim,
                                    self.x_lim, -self.y_lim, self.y_lim)
             fname = path.join(path.dirname(__file__), "assets/dr.png")
-            fname2 = path.join(path.dirname(__file__), "assets/plane2.png")
+            fname2 = path.join(path.dirname(__file__), "assets/gplane.png")
 
             self.drone_transforms = []
             self.drones = []
