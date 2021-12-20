@@ -4,6 +4,13 @@ import matplotlib.animation as animation
 import numpy as np
 import pickle
 
+import argparse
+
+parser = argparse.ArgumentParser(description='Animation Control')
+parser.add_argument('--nagents', default=5, type=int, help='number of agents in the simulation]')
+args = parser.parse_args()
+
+
 
 class AnimatedVoxels(object):
     def __init__(self, nagents, poslist_filename="./agents_position/agents_positions_planner.pkl"):
@@ -53,4 +60,5 @@ class AnimatedVoxels(object):
         self.ax.voxels(voxels, facecolors=colors, edgecolor='k',label="drone")
 
 if __name__ == "__main__":
-    AnimatedVoxels(5)
+    nagents = args.nagents
+    AnimatedVoxels(nagents)
