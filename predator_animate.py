@@ -26,7 +26,11 @@ def plot_trajectory(agent_p, bot_p, n_agents, n_bots):
     fig = plt.figure()
     ax = Axes3D(fig)
     
-    color_list = ['g', 'b', 'r', 'y', 'o']
+    #color_list = ['g', 'b', 'r', 'y', 'o']
+    color_list = []
+    #generate random colors for a given number of agents and store them in a list
+    for i in range(n_agents):
+        color_list.append('#%06X' % np.random.randint(0, 0xFFFFFF))
     
     line = [None for _ in range(n_agents)]
     redDots = [None for _ in range(n_bots)]
