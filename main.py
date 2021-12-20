@@ -25,7 +25,6 @@ from json_editor import Json_Editor
 
 timeFolderName = str(time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.gmtime()))
 
-
 torch.utils.backcompat.broadcast_warning.enabled = True
 torch.utils.backcompat.keepdim_warning.enabled = True
 
@@ -492,10 +491,13 @@ def run(num_epochs):
 
 
 def save(ep):
+    tm = time.localtime()
+
+    timeFolderName = str("{}-{}-{}-{}-{}".format(tm.tm_mday, tm.tm_mon, tm.tm_year, tm.tm_hour, tm.tm_min))
     current_dir =  os.path.abspath(os.path.dirname(__file__))
-    if not os.path.exists(current_dir  + "/weight" + "/" + args.scenario + "/" + str(timeFolderName)):
+    if not os.path.exists(current_dir  + "/weight" + "/" + args.scenario + "/" + timeFolderName):
         os.makedirs(current_dir  + "/weight" + "/" + args.scenario + "/" + str(timeFolderName))
-    file_path = current_dir  + "/weight" + "/" + args.scenario + "/" + str(timeFolderName) + "/" + args.scenario + "_" + str(ep) + ".pt"
+    file_path = current_dir  + "/weight" + "/" + args.scenario + "/" + timeFolderName + "/" + str(ep) + ".pt"
     print("file_path: ", file_path)
     d = dict()
     d['policy_net'] = policy_net.state_dict()
@@ -508,8 +510,8 @@ def save(ep):
 def load(test_model):
     current_dir =  os.path.abspath(os.path.dirname(__file__))
     # file_path = current_dir + "/weight" + "/" + args.scenario + ".pt"
-    file_path = current_dir + "/" + test_model
-
+    file_path = current_dir + "/weight" + test_model
+    
     d = torch.load(file_path)
     policy_net.load_state_dict(d['policy_net'])
     log.update(d['log'])
