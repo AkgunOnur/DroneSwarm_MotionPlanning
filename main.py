@@ -494,10 +494,11 @@ def save(ep):
     tm = time.localtime()
 
     timeFolderName = str("{}-{}-{}-{}-{}".format(tm.tm_mday, tm.tm_mon, tm.tm_year, tm.tm_hour, tm.tm_min))
+    infoFolderName = str("{}-{}-{}".format(args.nagents, args.nbots, ep))
     current_dir =  os.path.abspath(os.path.dirname(__file__))
     if not os.path.exists(current_dir  + "/weight" + "/" + args.scenario + "/" + timeFolderName):
         os.makedirs(current_dir  + "/weight" + "/" + args.scenario + "/" + str(timeFolderName))
-    file_path = current_dir  + "/weight" + "/" + args.scenario + "/" + timeFolderName + "/" + str(ep) + ".pt"
+    file_path = current_dir  + "/weight/" + args.scenario + "/" + timeFolderName + "/" + infoFolderName + ".pt"
     print("file_path: ", file_path)
     d = dict()
     d['policy_net'] = policy_net.state_dict()
