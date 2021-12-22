@@ -3,50 +3,63 @@
     "Vehicles": {
         "Drone1": {
             "VehicleType": "SimpleFlight",
-<<<<<<< HEAD
-            "X": 16,
-            "Y": 12,
-            "Z": -4
+            "X": -9,
+            "Y": -5,
+            "Z": -6
         },
         "Drone2": {
             "VehicleType": "SimpleFlight",
-            "X": 17,
+            "X": 4,
             "Y": -16,
             "Z": -5
         },
         "Drone3": {
             "VehicleType": "SimpleFlight",
-            "X": -7,
-            "Y": 10,
-            "Z": -3
-=======
-            "X": 14,
-            "Y": -7,
-            "Z": -6
-        },
-        "Drone2": {
-            "VehicleType": "SimpleFlight",
-            "X": -18,
-            "Y": 7,
-            "Z": -4
-        },
-        "Drone3": {
-            "VehicleType": "SimpleFlight",
             "X": 5,
-            "Y": 11,
-            "Z": -5
->>>>>>> b023b4461daa0991c19dfb27487a8174ab9df5cc
+            "Y": -4,
+            "Z": -3
         },
         "Drone4": {
             "VehicleType": "SimpleFlight",
-            "X": 17,
-<<<<<<< HEAD
-            "Y": 1,
+            "X": 4,
+            "Y": -5,
+            "Z": -6
+        },
+        "Drone5": {
+            "VehicleType": "SimpleFlight",
+            "X": -19,
+            "Y": 9,
+            "Z": -6
+        },
+        "Drone6": {
+            "VehicleType": "SimpleFlight",
+            "X": -9,
+            "Y": 6,
+            "Z": -3
+        },
+        "Drone7": {
+            "VehicleType": "SimpleFlight",
+            "X": 19,
+            "Y": -4,
             "Z": -2
-=======
-            "Y": 17,
-            "Z": -5
->>>>>>> b023b4461daa0991c19dfb27487a8174ab9df5cc
+        },
+        "Drone8": {
+            "VehicleType": "SimpleFlight",
+            "X": 12,
+            "Y": -16,
+            "Z": -4
+        },
+        "Drone9": {
+            "VehicleType": "SimpleFlight",
+            "X": 9,
+            "Y": 8,
+            "Z": -3
+        },
+        "Drone10": {
+            "VehicleType": "SimpleFlight",
+            "X": 0,
+            "Y": 19,
+            "Z": -3
         }
     }
 }
