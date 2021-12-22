@@ -18,7 +18,7 @@ class AnimatedVoxels(object):
             self.position_list = pickle.load(f)
         self.sim_len = np.asarray(self.position_list).shape[1]
         
-        self.nagents = nagents
+        self.nagents = len(self.position_list[0][0])
         self.fig = plt.figure()
         self.ax = self.fig.gca(projection='3d')
         self.ani = animation.FuncAnimation(self.fig, self.update, self.sim_len, interval=20, repeat=False)
