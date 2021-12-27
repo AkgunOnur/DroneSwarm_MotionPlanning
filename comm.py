@@ -190,6 +190,7 @@ class CommNetMLP(nn.Module):
 
     def get_agent_mask(self, batch_size, info):
         n = self.nagents
+        # print(info)
 
         if 'alive_mask' in info:
             agent_mask = torch.from_numpy(info['alive_mask'])

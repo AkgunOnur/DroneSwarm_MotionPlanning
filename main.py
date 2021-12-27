@@ -141,6 +141,7 @@ parser.add_argument('--visualization', action='store_true', default=False,
                     help="enable commnet model")
 
 
+
 # init_args_for_env(parser)
 args = parser.parse_args()
 
@@ -213,7 +214,7 @@ if args.seed == -1:
     args.seed = np.random.randint(0, 10000)
 torch.manual_seed(args.seed)
 
-print(args)
+print(args.naction_heads)
 
 if args.commnet:
     print("Policy Net: CommNetMLP")
@@ -268,6 +269,8 @@ log['entropy'] = LogField(list(), True, 'epoch', 'num_steps')
 def run(num_epochs):
     episode_surv_rates = []
     takeoff = False
+    tm = time.localtime()
+
     if args.mode=='Train' or args.mode=='train':
         print("TRAIN MODE")
         for ep in range(num_epochs):
@@ -325,7 +328,7 @@ def run(num_epochs):
                 env.close()
 
             if ep % args.save_every == 0 and ep != 0:
-                save(ep)
+                save(ep, tm)
                 
     elif args.mode == 'Test' or  args.mode =='test':
         print('TEST MODE')
@@ -490,15 +493,16 @@ def run(num_epochs):
         print("Wrong Mode!!!")
 
 
-def save(ep):
-    tm = time.localtime()
+def save(ep, tm):
 
     timeFolderName = str("{}-{}-{}-{}-{}".format(tm.tm_mday, tm.tm_mon, tm.tm_year, tm.tm_hour, tm.tm_min))
     infoFolderName = str("{}-{}-{}".format(args.nagents, args.nbots, ep))
     current_dir =  os.path.abspath(os.path.dirname(__file__))
-    if not os.path.exists(current_dir  + "/weight" + "/" + args.scenario + "/" + timeFolderName):
-        os.makedirs(current_dir  + "/weight" + "/" + args.scenario + "/" + str(timeFolderName))
+
+    if not os.path.exists(current_dir  + "/weight/" + args.scenario + "/" + timeFolderName):
+        os.makedirs(current_dir  + "/weight/" + args.scenario + "/" + str(timeFolderName))
     file_path = current_dir  + "/weight/" + args.scenario + "/" + timeFolderName + "/" + infoFolderName + ".pt"
+    
     print("file_path: ", file_path)
     d = dict()
     d['policy_net'] = policy_net.state_dict()

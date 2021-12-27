@@ -9,6 +9,7 @@ def parse_action_args(args):
         # assert args.dim_actions == 1
         # support multi action
         args.naction_heads = [int(args.num_actions[i]) for i in range(args.dim_actions)]
+        print(args.naction_heads)
     else:
         # environment takes continuous action
         actions_heads = args.nactions.split(':')
