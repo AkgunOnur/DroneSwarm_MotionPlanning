@@ -484,7 +484,7 @@ def run(num_epochs):
                         else:
                             for drn in agents_list:
                                 targets.append([agent_p[drn][0]-initial_poses[drn][0], agent_p[drn][1]-initial_poses[drn][1], agent_p[drn][2]-initial_poses[drn][2]])
-                                client.moveToPositionAsync(agent_p[drn][0]-initial_poses[drn][0], agent_p[drn][1]-initial_poses[drn][1], agent_p[drn][2]-initial_poses[drn][2], 10, vehicle_name=f"Drone{drn+1}")
+                                client.moveToPositionAsync(agent_p[drn][0]-initial_poses[drn][0], agent_p[drn][1]-initial_poses[drn][1], agent_p[drn][2]-initial_poses[drn][2], 5, vehicle_name=f"Drone{drn+1}")
                                 
                             for bt in bots_list:
                                 targets.append([bot_p[bt][0]-initial_poses[len(agents_list)+bt][0], bot_p[bt][1]-initial_poses[len(agents_list)+bt][1], bot_p[bt][2]-initial_poses[len(agents_list)+bt][2]])

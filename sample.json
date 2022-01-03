@@ -24,6 +24,42 @@
             "X": -30,
             "Y": 32,
             "Z": 0
+        },
+        "Drone5": {
+            "VehicleType": "SimpleFlight",
+            "X": -30,
+            "Y": 36,
+            "Z": 0
+        },
+        "Drone6": {
+            "VehicleType": "SimpleFlight",
+            "X": -30,
+            "Y": 40,
+            "Z": 0
+        },
+        "Drone7": {
+            "VehicleType": "SimpleFlight",
+            "X": -30,
+            "Y": 44,
+            "Z": 0
+        },
+        "Drone8": {
+            "VehicleType": "SimpleFlight",
+            "X": -30,
+            "Y": 48,
+            "Z": 0
+        },
+        "Drone9": {
+            "VehicleType": "SimpleFlight",
+            "X": -30,
+            "Y": 52,
+            "Z": 0
+        },
+        "Drone10": {
+            "VehicleType": "SimpleFlight",
+            "X": -30,
+            "Y": 56,
+            "Z": 0
         }
     }
 }

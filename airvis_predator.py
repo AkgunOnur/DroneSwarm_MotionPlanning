@@ -182,19 +182,10 @@ class VirEnv(gym.Env):
 
 if __name__ == "__main__":
 
-    with open('./agents_position/agents_positions.pkl', 'rb') as f:
-        agent_pos = pickle.load(f)
-    
-    with open('./agents_position/bots_positions.pkl', 'rb') as f:
-        bot_pos = pickle.load(f)
-
-    n_agents = len(agent_pos[0][0])
-    n_bots = len(bot_pos[0][0])
-
     HOST = '127.0.0.1'
     PORT = 9090
 
-    virtual_env = VirEnv(n_agents=n_agents, n_bots=n_bots)
+    
 
     serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     serverSocket.bind((HOST, PORT))
@@ -210,6 +201,9 @@ if __name__ == "__main__":
         dataFromClient = pickle.loads(clientsocket.recv(4096))
 
         if idx == 0:
+            n_agents=len(np.array(dataFromClient)[0][:,0])
+            n_bots=len(np.array(dataFromClient)[1][:,0])
+            virtual_env = VirEnv(n_agents=n_agents, n_bots=n_bots)
             virtual_env.reset(dataFromClient[0], dataFromClient[1])
 
         virtual_env.step(dataFromClient[0], dataFromClient[1])

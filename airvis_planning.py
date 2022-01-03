@@ -53,7 +53,6 @@ class VirQuadEnv(gym.Env):
             self.visualize()
 
     def reset(self, agent_pos):
-        print("agent_pos: ", agent_pos)
         self.quadrotors = []
         for agent_ind in range(0, self.n_agents):
             state0 = [agent_pos[agent_ind][0], agent_pos[agent_ind][1], agent_pos[agent_ind][2],
@@ -82,16 +81,11 @@ class VirQuadEnv(gym.Env):
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')
 
 if __name__ == "__main__":
-    with open('./agents_position/agents_positions_planner.pkl', 'rb') as f:
-        agent_pos = pickle.load(f)
-
-    n_agents = len(agent_pos[0][0])
-    print("nagents:", n_agents)
 
     HOST = '127.0.0.1'
     PORT = 9090
 
-    virtual_env = VirQuadEnv(n_agents=n_agents)
+    
 
     serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     serverSocket.bind((HOST, PORT))
@@ -106,6 +100,8 @@ if __name__ == "__main__":
         dataFromClient = pickle.loads(clientsocket.recv(4096))
 
         if idx == 0:
+            n_agents=len(np.array(dataFromClient)[0][:,0])
+            virtual_env = VirQuadEnv(n_agents=n_agents)
             virtual_env.reset(dataFromClient[0])
         virtual_env.step(dataFromClient[0])
 
