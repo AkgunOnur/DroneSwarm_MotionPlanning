@@ -22,6 +22,8 @@ import pickle
 import glob
 import os
 from json_editor import Json_Editor
+import threading
+import pprint
 
 timeFolderName = str(time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.gmtime()))
 
@@ -266,6 +268,41 @@ log['entropy'] = LogField(list(), True, 'epoch', 'num_steps')
 # if args.plot:
 #     vis = visdom.Visdom(env=args.plot_env)
 
+def find_airsim_initial_poses(n_agents):
+    x_initial=0
+    y_initial=0
+    positions=[]
+    pose_x=x_initial
+    pose_y=y_initial
+    for i in range(n_agents):
+        pose_x=x_initial-4*int(i/10)
+        pose_y=y_initial+4*int(i-int(i/10)*10)
+        positions.append([pose_x,pose_y,0])
+    return positions
+
+def stateToPosition(state):
+    state_arr=state.split('{')[13].split(':')
+    x=float(state_arr[1].split(',')[0])
+    y=float(state_arr[2].split(',')[0])
+    z=float(state_arr[3].split('}')[0])
+    return [x,y,z]
+
+def getAllPositions(client,n_agents):
+    positions=[]
+    for i in range(n_agents):
+        state = client.getMultirotorState(vehicle_name=f"Drone{i+1}")
+        s = pprint.pformat(state)
+        positions.append(stateToPosition(s))
+    return positions
+
+def check_complated(targets,poses):
+    for i in range(len(targets)):
+        err=np.sqrt(pow(poses[i][0]-targets[i][0],2)+pow(poses[i][1]-targets[i][1],2)+pow(poses[i][2]-targets[i][2],2))
+        if err>.5:
+            return False
+    return True
+
+
 def run(num_epochs):
     episode_surv_rates = []
     takeoff = False
@@ -374,6 +411,7 @@ def run(num_epochs):
             if(args.airsim_vis == True):
                 client = airsim.MultirotorClient()
                 client.confirmConnection()
+                initial_poses=find_airsim_initial_poses(args.nagents+args.nbots)
 
                 for drn in agents_list:
                     client.enableApiControl(True, f"Drone{drn+1}")
@@ -406,6 +444,7 @@ def run(num_epochs):
                 i = 0
                 if args.scenario == 'predator':
                     for agent_p, bot_p in zip(agent_pos, bot_pos):
+
                         if args.visualization:
                             info_list = []
 
@@ -418,32 +457,53 @@ def run(num_epochs):
                             
                             info_data = pickle.dumps(info_list)
                             clientSocket.send(info_data)
-
+                        
+                        targets=[]
                         if i == 0:
                             airsim.wait_key('Press any key to take initial position')
 
                             for drn in agents_list:
-                                client.moveToPositionAsync(agent_p[drn][0], agent_p[drn][1], agent_p[drn][2], 6, vehicle_name=f"Drone{drn+1}")
+                                targets.append([agent_p[drn][0]-initial_poses[drn][0], agent_p[drn][1]-initial_poses[drn][1], agent_p[drn][2]-initial_poses[drn][2]])
+                                client.moveToPositionAsync(agent_p[drn][0]-initial_poses[drn][0], agent_p[drn][1]-initial_poses[drn][1], agent_p[drn][2]-initial_poses[drn][2], 6, vehicle_name=f"Drone{drn+1}")
                                 
                             for bt in bots_list:
-                                client.moveToPositionAsync(bot_p[bt][0], bot_p[bt][1], bot_p[bt][2], 6, vehicle_name=f"Drone{args.nagents+bt+1}")
+                                targets.append([bot_p[bt][0]-initial_poses[len(agents_list)+bt][0], bot_p[bt][1]-initial_poses[len(agents_list)+bt][1], bot_p[bt][2]-initial_poses[len(agents_list)+bt][2]])
+                                client.moveToPositionAsync(bot_p[bt][0]-initial_poses[len(agents_list)+bt][0], bot_p[bt][1]-initial_poses[len(agents_list)+bt][1], bot_p[bt][2]-initial_poses[len(agents_list)+bt][2], 6, vehicle_name=f"Drone{args.nagents+bt+1}")
+                            
+                            while  True:
+                                poses=getAllPositions(client,len(agents_list)+len(bots_list))
+                                statu=check_complated(poses=poses,targets=targets)
+                                if statu==True:
+                                    break
+                                time.sleep(.1)
+
 
                             airsim.wait_key('Press any key to start')
                             time.sleep(0.1)
 
                         else:
                             for drn in agents_list:
-                                client.moveToPositionAsync(agent_p[drn][0], agent_p[drn][1], agent_p[drn][2], 3, vehicle_name=f"Drone{drn+1}")
+                                targets.append([agent_p[drn][0]-initial_poses[drn][0], agent_p[drn][1]-initial_poses[drn][1], agent_p[drn][2]-initial_poses[drn][2]])
+                                client.moveToPositionAsync(agent_p[drn][0]-initial_poses[drn][0], agent_p[drn][1]-initial_poses[drn][1], agent_p[drn][2]-initial_poses[drn][2], 10, vehicle_name=f"Drone{drn+1}")
                                 
                             for bt in bots_list:
-                                client.moveToPositionAsync(bot_p[bt][0], bot_p[bt][1], bot_p[bt][2], 2, vehicle_name=f"Drone{args.nagents+bt+1}")
-
+                                targets.append([bot_p[bt][0]-initial_poses[len(agents_list)+bt][0], bot_p[bt][1]-initial_poses[len(agents_list)+bt][1], bot_p[bt][2]-initial_poses[len(agents_list)+bt][2]])
+                                client.moveToPositionAsync(bot_p[bt][0]-initial_poses[len(agents_list)+bt][0], bot_p[bt][1]-initial_poses[len(agents_list)+bt][1], bot_p[bt][2]-initial_poses[len(agents_list)+bt][2], 6, vehicle_name=f"Drone{args.nagents+bt+1}")
+                            
+                            while  False:
+                                poses=getAllPositions(client,len(agents_list)+len(bots_list))
+                                statu=check_complated(poses=poses,targets=targets)
+                                if statu==True:
+                                    break
+                                time.sleep(.1)
                             time.sleep(0.1)
                         i += 1
+                    time.sleep(5)
                     
                 elif args.scenario == 'planning':
                     #f_list = []
                     for agent_p in zip(agent_pos):
+
                         if args.visualization:
                             info_list = []
                             curr_agentPos = [[agent_p[0][drn][0], agent_p[0][drn][1], agent_p[0][drn][2]] for drn in range(len(agents_list))]
@@ -451,20 +511,41 @@ def run(num_epochs):
                             info_data = pickle.dumps(info_list)	
                             clientSocket.send(info_data)
 
+                        agent_control_list=[]
+                        targets=[]
+                        agent_p=agent_p[0]
+
                         if i == 0:
                             airsim.wait_key('Press any key to take initial position')
                             for drn in agents_list:
-                                client.moveToPositionAsync(agent_p[0][drn][0], agent_p[0][drn][1], -agent_p[0][drn][2], 6, vehicle_name=f"Drone{drn+1}")
+                                targets.append([agent_p[drn][0]-initial_poses[drn][0], agent_p[drn][1]-initial_poses[drn][1], agent_p[drn][2]-initial_poses[drn][2]])
+                                client.moveToPositionAsync(agent_p[drn][0]-initial_poses[drn][0], agent_p[drn][1]-initial_poses[drn][1], agent_p[drn][2]-initial_poses[drn][2], 6, vehicle_name=f"Drone{drn+1}")
+                                
+                            while  True:
+                                poses=getAllPositions(client,len(agents_list))
+                                statu=check_complated(poses=poses,targets=targets)
+                                if statu==True:
+                                    break
+                                time.sleep(.1)
 
                             airsim.wait_key('Press any key to start')
-                            time.sleep(0.1)
+                            time.sleep(0.05)
 
 
                         else:
                             for drn in agents_list:
-                                client.moveToPositionAsync(agent_p[0][drn][0], agent_p[0][drn][1], -agent_p[0][drn][2], 3, vehicle_name=f"Drone{drn+1}")
+                                targets.append([agent_p[drn][0]-initial_poses[drn][0], agent_p[drn][1]-initial_poses[drn][1], agent_p[drn][2]-initial_poses[drn][2]])
+                                client.moveToPositionAsync(agent_p[drn][0]-initial_poses[drn][0], agent_p[drn][1]-initial_poses[drn][1], agent_p[drn][2]-initial_poses[drn][2], 6, vehicle_name=f"Drone{drn+1}")
+                                
+                            while  False:
+                                poses=getAllPositions(client,len(agents_list))
+                                statu=check_complated(poses=poses,targets=targets)
+                                if statu==True:
+                                    break
+                                time.sleep(.1)
                             time.sleep(0.1)
                         i += 1
+                    time.sleep(5)
                     
                     print("\nTEST RESULTS")
                     reporter = Reporter()

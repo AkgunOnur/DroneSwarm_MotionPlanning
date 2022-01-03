@@ -103,7 +103,7 @@ if __name__ == "__main__":
 
     idx = 0
     while True:
-        dataFromClient = pickle.loads(clientsocket.recv(1024))
+        dataFromClient = pickle.loads(clientsocket.recv(4096))
 
         if idx == 0:
             virtual_env.reset(dataFromClient[0])

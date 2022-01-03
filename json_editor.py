@@ -22,14 +22,24 @@ class Json_Editor():
                 
     def modify(self):
         self.reset_json()
-        if os.path.exists('./sample.json'):
-            with open('./sample.json', 'r+') as file:
+        if os.path.exists('sample.json'):
+            with open('sample.json', 'r+') as file:
 
                 #First we load existing data into a dict.
                 file_data = json.load(file)
                 drone = {}
+                x_initial=-30
+                y_initial=20
+                positions=[]
+                pose_x=x_initial
+                pose_y=y_initial
+                for i in range(self.nagent):
+                    pose_x=x_initial-4*int(i/10)
+                    pose_y=y_initial+4*int(i-int(i/10)*10)
+                    positions.append([pose_x,pose_y])
+
                 for n in range(self.nagent):
-                    drone['Drone'+str(n+1)] = {"VehicleType": "SimpleFlight", "X": np.random.randint(-20,20), "Y": np.random.randint(-20,20), "Z": np.random.randint(-6,0)}
+                    drone['Drone'+str(n+1)] = {"VehicleType": "SimpleFlight", "X": positions[n][0], "Y": positions[n][1], "Z": 0}
 
                 # Join new_data with file_data
                 file_data['Vehicles'].update(drone)
@@ -41,7 +51,8 @@ class Json_Editor():
                 file.seek(0)
                 json.dump(file_data, file, indent = 4)
                 file.close()
-        os.popen('cp ./sample.json ~/Documents/AirSim/settings.json') 
+
+        os.system('cp sample.json ~/Documents/AirSim/settings.json')
 
 
 
