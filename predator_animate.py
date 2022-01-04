@@ -9,6 +9,7 @@ def animate(num, x, y, z, line, n_agents, n_bots, bot_p, redDots, ax):
     if num == 0:
         for n_b in range(n_bots):
             redDots[n_b] = ax.scatter3D(bot_p[0][n_b][0], bot_p[0][n_b][1], bot_p[0][n_b][2], lw=14, c='r')
+            #redDots[n_b] = ax.plot3D(bot_p[0][n_b][0], bot_p[0][n_b][1], bot_p[0][n_b][2], c='r')
 
     for n_a in range(n_agents):
         line[n_a].set_data(np.array([x[n_a][:num], y[n_a][:num]]))    
@@ -17,10 +18,12 @@ def animate(num, x, y, z, line, n_agents, n_bots, bot_p, redDots, ax):
     for n_b in range(n_bots):
         if bot_p[num][n_b][2] == 0:
             redDots[n_b] = ax.scatter3D(bot_p[0][n_b][0], bot_p[0][n_b][1], bot_p[0][n_b][2], lw=14, c='grey')
+            #redDots[n_b] = ax.plot3D(bot_p[0][n_b][0], bot_p[0][n_b][1], bot_p[0][n_b][2], 'grey')
 
     return line
 
 def plot_trajectory(agent_p, bot_p, n_agents, n_bots):
+
     numDataPoints = len(agent_p)
 
     fig = plt.figure()
@@ -52,7 +55,7 @@ def plot_trajectory(agent_p, bot_p, n_agents, n_bots):
             zdata[n_a].append(agent_p[point_idx][n_a][2])
 
     for n_a in range(n_agents):
-        line[n_a] = plt.plot(xdata[n_a], ydata[n_a], zdata[n_a], lw=2, c=color_list[n_a])[0]
+        line[n_a] = ax.plot(xdata[n_a], ydata[n_a], zdata[n_a], lw=2, c=color_list[n_a])[0]
         line[n_a].set_label('Agent %d' %(n_a+1))
 
     plt.legend()
@@ -66,10 +69,11 @@ def plot_trajectory(agent_p, bot_p, n_agents, n_bots):
     ax.set_zlabel('Z - Axis')
     ax.set_title('Trajectory of agents')
     
-    line_ani = animation.FuncAnimation(fig, animate, frames=numDataPoints, fargs=(xdata, ydata, zdata, line, n_agents, n_bots, bot_p, redDots, ax), interval=30, blit=False)
-
+    line_ani = animation.FuncAnimation(fig, animate, frames=numDataPoints, fargs=(xdata, ydata, zdata, line, n_agents, n_bots, bot_p, redDots, ax), interval=100, blit=False)
+    
     plt.show()
     
+
 if __name__ == "__main__":
     with open('./agents_position/agents_positions.pkl', 'rb') as f:
         agents_pos_list = pickle.load(f)
@@ -80,7 +84,5 @@ if __name__ == "__main__":
     n_agents = len(agents_pos_list[0][0])
     n_bots = len(bots_pos_list[0][0])
 
-    for idx in range(len(agents_pos_list)):
-        agent_pos, bot_pos = agents_pos_list[idx], bots_pos_list[idx]
-        plot_trajectory(agent_pos, bot_pos, n_agents, n_bots)
+    plot_trajectory(agents_pos_list[0], bots_pos_list[0], n_agents, n_bots)
         
